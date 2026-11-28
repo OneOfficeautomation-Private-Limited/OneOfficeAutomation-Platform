@@ -100,8 +100,10 @@ describe("Document Automation", () => {
     const read = await within(extract).findByRole("table", { name: /^Fields of / });
     expect(within(read).getAllByRole("row").length).toBeGreaterThan(1);
     expect(within(extract).getByRole("link", { name: "Edit this type ↗" }).getAttribute("href")).toMatch(/^#\/types\//);
-    await waitFor(() => expect(within(extract).getByLabelText("Reading summary").textContent).toMatch(/^Read by: (?!the default).+ · Budget: none$/));
-    expect(within(extract).getByLabelText(/Monthly budget for cloud and AI reading \(USD, optional\)/)).toBeTruthy();
+    await waitFor(() => expect(within(extract).getByText(/^Read by/).textContent).not.toMatch(/the default engine/));
+    expect(within(extract).getByLabelText("Monthly budget for cloud and AI reading (optional)")).toBeTruthy();
+    expect(within(extract).getByText("USD")).toBeTruthy();                             // the currency once, by the box
+    expect(read.classList.contains("cc-no-filter")).toBe(true);                       // a small read-only list: no funnels
     fireEvent.click(within(extract).getByRole("button", { name: "Show advanced settings" }));
     // the engine list is long enough to be the searchable list: its value shows the default by name
     const engine = within(extract).getByLabelText("Engine that reads the fields") as HTMLInputElement;

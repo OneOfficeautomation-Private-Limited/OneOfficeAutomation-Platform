@@ -49,6 +49,13 @@ describe("column tools on every table", () => {
     expect(document.querySelector(".cc-col-filtered")).toBeNull();
   });
 
+  it("a small read-only list (cc-no-filter) gets no funnels", async () => {
+    table(["Field", "Kind"], [["Title", "Text"], ["Date", "Date"], ["Total", "Number"]], "df-table cc-no-filter");
+    stop = enableTableTools(document);
+    await frame();
+    expect(document.querySelectorAll(".cc-col-filter")).toHaveLength(0);
+  });
+
   it("a long list of values gets a search box", async () => {
     table(["Name"], Array.from({ length: 12 }, (_, i) => ["Item " + i]).concat([["Item 0"]]));
     stop = enableTableTools(document);

@@ -271,7 +271,8 @@ export function enableTableTools(root: Document | HTMLElement = document): () =>
         if (SKIP(th)) continue;
         const label = labelOf(th);
         th.classList.add("cc-col-th");
-        if (dataRows(t, head.cells.length).length > 1 || t.classList.contains("cc-list-table")) {
+        // a small read-only list (class cc-no-filter, e.g. a type's fields shown in a step) has nothing to filter
+        if (!t.classList.contains("cc-no-filter") && (dataRows(t, head.cells.length).length > 1 || t.classList.contains("cc-list-table"))) {
           const b = el("button", { type: "button", className: "cc-col-filter", title: "Filter " + label });
           b.setAttribute("aria-label", "Filter " + label);
           b.innerHTML = '<svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18l-7 9v6l-4 2v-8z"/></svg>';

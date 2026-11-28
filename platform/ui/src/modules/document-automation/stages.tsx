@@ -231,11 +231,15 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
  * them), then who reads them: the default engine by name, an engine of the process's own or one per type (advanced),
  * and the month's budget in the price currency. A line sums it up while the advanced settings are closed.
  */
+/** Engines that copy values from the page only: they cannot work a value out or pick one (fields read "By AI"). */
+const COPY_ONLY = new Set(["builtin-rules", "azure-di", "aws-textract", "google-docai", "abbyy"]);
+
 export function ExtractStage({ s, set, api, processId, types = [] }: { s: ProcessSettings; set: SetSettings; api?: DocFlowApi; processId?: string; types?: { id: string; name: string }[] }) {
   const [advanced, setAdvanced] = useState(s.extraction !== "auto" || Object.keys(s.extractionByType ?? {}).length > 0);   // a chosen engine is shown, not hidden
   // the engines that read fields on this server's DocFlow (any option pack), else the usual list
   const [engines, setEngines] = useState(EXTRACTION);
   const [defaultName, setDefaultName] = useState<string | null>(null);
+  const [defaultId, setDefaultId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const [spend, setSpend] = useState<{ spend: number; currency: string; localOnly: boolean } | null>(null);
   const [docTypes, setDocTypes] = useState<DocType[] | null>(null);
@@ -247,6 +251,7 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
       const fields = all.filter((x) => x.does !== "Reads pages" && !x.can?.includes("split"));
       if (fields.length) setEngines([EXTRACTION[0], ...fields.map((x) => ({ value: x.id, label: x.name + (x.status === "ready" ? "" : x.status === "optin" ? " (needs cloud opt-in)" : " (needs setting up)") }))]);
       const d = e.routing.extraction || "builtin-rules";
+      setDefaultId(d);
       setDefaultName(all.find((x) => x.id === d)?.name ?? d);
       if (e.prices?.currency) setCurrency(e.prices.currency);
     }, () => undefined);
@@ -259,6 +264,12 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
   const defaultLabel = "Default engine (Engines page)" + (defaultName ? ": " + defaultName : "");
   const own = Object.keys(byType).length;
   const shown = types.map((t) => docTypes?.find((d) => d.id === t.id) ?? null);
+  // fields read "By AI" (worked out or picked) that the engine reading their type cannot do
+  const engineOf = (typeId: string) => byType[typeId] || (s.extraction === "auto" ? defaultId : s.extraction);
+  const unreadable = types.flatMap((t, i) => {
+    const e = engineOf(t.id);
+    return e && COPY_ONLY.has(e) ? (shown[i]?.fields ?? []).filter((f) => f.method === "work-out" || f.method === "pick").map((f) => ({ field: f.label, engine: nameOf(e) })) : [];
+  });
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <section className="df-sec" aria-label="What is read">
@@ -272,7 +283,7 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
                 <div key={t.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}><b>{d?.name ?? t.name}</b><span className="df-grow" />
                     <a href={dfHash() + "types/" + encodeURIComponent(t.id)} style={{ fontWeight: 600 }}>Edit this type ↗</a></div>
-                  {d && d.fields.length ? <table className="df-table" aria-label={"Fields of " + d.name}>
+                  {d && d.fields.length ? <table className="df-table cc-no-filter" aria-label={"Fields of " + d.name}>
                     <thead><tr><th>Field</th><th>Kind</th><th>Read</th><th>Required</th></tr></thead>
                     <tbody>{d.fields.slice(0, SHOWN_FIELDS).map((f) => <tr key={f.key}><td>{f.label}</td><td>{f.type}</td><td>{READ[f.method ?? "copy"]}</td><td>{f.required ? "Yes" : "No"}</td></tr>)}</tbody>
                   </table> : <span className="df-small">{d ? "No fields yet: add them with Edit this type." : "The fields are in Libraries, Document types."}</span>}
@@ -289,10 +300,11 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
           <p style={{ margin: 0 }}>{s.extraction === "auto"
             ? <>Read by <b>{defaultName ?? "the default engine"}</b>, the engine set on the Engines page.</>
             : <>This process uses its own engine: <b>{nameOf(s.extraction)}</b>.</>}
+            {own ? ` ${own === types.length ? "Each type has" : own + " type" + (own === 1 ? " has" : "s have")} an engine of ${own === 1 ? "its" : "their"} own (advanced settings).` : ""}
             {" "}How pages are read (OCR) and when the cloud may be used are set once for every process on <a href={dfHash() + "engines/routing"}>Engines</a>.</p>
-          {!advanced && <p className="df-small" aria-label="Reading summary" style={{ margin: 0 }}>
-            Read by: {nameOf(s.extraction)}{own ? ` · ${own} type${own === 1 ? "" : "s"} with an engine of ${own === 1 ? "its" : "their"} own` : ""}
-            {" · "}Budget: {s.monthlyBudget == null ? "none" : money(s.monthlyBudget, cur) + " a month"}</p>}
+          {unreadable.length > 0 && <p className="df-small df-text-warn" role="alert" aria-label="Fields the engine cannot read" style={{ margin: 0 }}>
+            {unreadable.length === 1 ? `${unreadable[0].field} is read By AI` : `${unreadable.length} fields (${unreadable.map((u) => u.field).join(", ")}) are read By AI`}, which {[...new Set(unreadable.map((u) => u.engine))].join(" and ")} cannot do: {unreadable.length === 1 ? "it" : "they"} will stay empty.
+            {" "}Choose an AI engine under advanced settings, or on <a href={dfHash() + "engines"}>Engines</a>.</p>}
           <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
           {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
             {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })}
@@ -308,7 +320,7 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
             </div>
           </fieldset>}
           <div className="df-grid df-g2">
-            <Field label={`Monthly budget for cloud and AI reading (${cur}, optional)`}
+            <Field label="Monthly budget for cloud and AI reading (optional)"
               hint={`Reached: the process reads on this server until the month ends. Empty: no limit.${spend ? ` This month so far: about ${money(spend.spend, spend.currency)}${spend.localOnly ? " (budget reached: reading on this server)" : ""}.` : ""}`}>
               {(id) => <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <TextInput id={id} inputMode="decimal" value={s.monthlyBudget == null ? "" : String(s.monthlyBudget)} placeholder="No limit"

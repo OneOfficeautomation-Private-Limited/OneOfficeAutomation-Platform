@@ -89,7 +89,7 @@ export function ClassificationStep({ api, design, setSettings, onType, onTypes }
                 : !chosen ? <p className="df-small" style={{ margin: 0 }}>Choose a document type on the left.</p> : <>
                   {chosen.description ? <p className="df-type-quote">“{chosen.description}”</p>
                     : <p className="df-small df-text-warn" style={{ margin: 0 }}>No description yet: add one with Edit this type, so AI engines can recognise it.</p>}
-                  {chosen.fields.length ? <table className="df-table" aria-label={"Fields of " + chosen.name}>
+                  {chosen.fields.length ? <table className="df-table cc-no-filter" aria-label={"Fields of " + chosen.name}>
                     <thead><tr><th>Field</th><th>Kind</th><th>Read</th><th>Required</th></tr></thead>
                     <tbody>{chosen.fields.slice(0, SHOWN_FIELDS).map((f) => <tr key={f.key}><td>{f.label}</td><td>{f.type}</td><td>{READ[f.method ?? "copy"]}</td><td>{f.required ? "Yes" : "No"}</td></tr>)}</tbody>
                   </table> : <p className="df-small" style={{ margin: 0 }}>No fields yet: add them with Edit this type.</p>}
