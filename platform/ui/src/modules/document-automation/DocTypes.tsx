@@ -110,8 +110,10 @@ export function DocTypes({ api, typeId }: { api: DocFlowApi; typeId?: string }) 
  * the labels DocFlow looks for. Used on the Document types page and in a process's classification step. A type is
  * shared, so saving it changes every process that uses it. id "" is a type not saved yet (Create type saves it).
  */
-export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addField = false, showTest = true }:
-  { api: DocFlowApi; value: DocType; onSaved: (t: DocType) => void; onDiscard?: () => void; onDeleted?: () => void; addField?: boolean; showTest?: boolean }) {
+export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addField = false, showTest = true, saveLabel }:
+  { api: DocFlowApi; value: DocType; onSaved: (t: DocType) => void; onDiscard?: () => void; onDeleted?: () => void; addField?: boolean; showTest?: boolean;
+    /** The Save button's words when the editor is opened from a process step ("Save and back to step 3"). */
+    saveLabel?: string }) {
   const [t, setDraft] = useState<DocType>(() => structuredClone(value));
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
@@ -230,7 +232,7 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
         <span className="df-muted">{t.usedBy.length ? <>Used by {t.usedBy.length} process{t.usedBy.length === 1 ? "" : "es"}: {t.usedBy.join(", ")}. Saving changes them all.</> : "No process uses it yet."}</span>
         <Button kind="primary" disabled={!dirty || busy || !t.name.trim() || noDescription}
           title={noDescription ? "Add a description first: AI engines recognise the type from it" : !t.fields.length ? "Saved with no fields: add them before a process uses it" : undefined}
-          onClick={save}>{t.id ? "Save type" : "Create type"}</Button>
+          onClick={save}>{t.id ? saveLabel ?? "Save type" : "Create type"}</Button>
       </div>
 
       {editing && <FieldDialog key={editing === "new" ? "new" : editing.key} value={editing === "new" ? null : editing} taken={t.fields.map((f) => f.key)}

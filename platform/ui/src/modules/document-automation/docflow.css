@@ -267,6 +267,12 @@
 .df-steps .df-stage { min-width: 0; padding: 8px 10px; gap: 8px; align-items: flex-start; height: auto; line-height: 1.3; }
 .df-stage-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: start; }
 .df-stage-text > b { font-size: 13px; line-height: 22px; overflow-wrap: break-word; }
+/* Nav A (28 Nov 2026): a document type edited beside the step, in a wide panel on the right */
+.ui-dialog.df-type-panel { top: 0; bottom: 0; left: auto; right: 0; transform: none; width: min(900px, 100vw); max-width: 100vw !important;
+  max-height: none; height: 100vh; border-radius: 0; }
+.ui-dialog.df-type-panel .ui-dialog-body { flex: 1; background: var(--ui-soft); }
+.df-panel-note { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; padding: 9px 12px; border: 1px solid #b7791f; border-radius: 6px; background: #fff7e6; color: var(--ui-text); }
+.df-panel-note.is-done { border-color: #1f7a45; background: #eaf6ef; }
 /* step 5: field names to click into a formula */
 .df-chips-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .df-chip-btn { min-height: 26px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 13px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }

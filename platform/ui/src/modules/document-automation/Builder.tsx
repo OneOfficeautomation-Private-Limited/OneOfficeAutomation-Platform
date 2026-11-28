@@ -100,6 +100,13 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
     const fields = list.flatMap(fieldsOf).filter((f) => !seen.has(f.name) && (seen.add(f.name), true));
     change({ docTypeIds: list.map((t) => t.id), docType: list.map((t) => t.name).join(", "), fields });
   };
+  // the edit panel (steps 3 and 4): a type saved shows its fields again; a copy made for this process replaces the type
+  const onReplaceType = (t: DocType, oldId: string) => {
+    if (design.docTypeIds.length <= 1) return onType(t);
+    if (t.id === oldId) return;   // several types: the fields refresh when the process is opened again
+    api.docTypes().then((all) => onTypes(design.docTypeIds.map((id) => id === oldId ? t : all.find((x) => x.id === id)).filter((x): x is DocType => !!x)),
+      () => undefined);
+  };
   const saveDraft = async () => {
     setBusy(true);
     try { const d = await api.saveProcess(design); setDesign(d); setSaved(d); } catch (e) { reportError(e); } finally { setBusy(false); }
@@ -141,7 +148,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
       <Steps steps={steps.map((s, i) => (i === CHECKS ? { ...s, summary: `${design.checks.length} checks` } : s))} stage={stage} onStage={setStage} enabled={() => true} />
 
       {stage === SELECT ? <SelectStep choices={choices} chosen={design} onChoose={(id) => (id === design.id ? setStage(INTAKE) : choose(id))} onNew={() => setCreating(true)} />
-        : stage === CLASSIFY ? <ClassificationStep api={api} design={design} setSettings={setSettings} onType={onType} onTypes={onTypes} /> : stage === TEST ? (
+        : stage === CLASSIFY ? <ClassificationStep api={api} design={design} setSettings={setSettings} onType={onType} onTypes={onTypes} onReplaceType={onReplaceType} /> : stage === TEST ? (
         <section className="df-card df-pad" aria-label="Testing & go-live" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
           <div><b style={{ fontSize: 15 }}>8 · Testing & go-live</b><div className="df-muted">Try 1–3 sample documents. Nothing is saved or sent to review. When the results are right, go live.</div></div>
           <TestLab api={api} initialType={design.docType} embedded />
@@ -212,7 +219,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                 </section>
               </>}
               {stage === EXTRACT && <>
-                <ExtractStage s={design.settings} set={setSettings} api={api} processId={design.id}
+                <ExtractStage s={design.settings} set={setSettings} api={api} processId={design.id} processName={design.name} onReplaceType={onReplaceType}
                   types={design.docTypeIds.map((id, i) => ({ id, name: design.docType.split(", ")[i] ?? id }))} />
               </>}
               {stage === REVIEW && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} />}

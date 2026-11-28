@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChoiceFilter, Select } from "../../components";
 import type { DocFlowApi, DocType, ProcessDesign, ProcessSettings } from "./api";
 import { DocTypeEditor, NameDialog, TeachDialog } from "./DocTypes";
+import { TypePanel } from "./typePanel";
 import { Loading, dfHash, useLoad } from "./ui";
 
 export const READ: Record<string, string> = { copy: "From the page", "work-out": "By AI", pick: "Picked by AI" };
@@ -15,14 +16,17 @@ export const SHOWN_FIELDS = 8;
  * by processes, so it is shown read-only, with "Edit this type" to Libraries, Document types. A type made here (New type,
  * Teach from samples) opens in full below until it is created.
  */
-export function ClassificationStep({ api, design, setSettings, onType, onTypes }:
+export function ClassificationStep({ api, design, setSettings, onType, onTypes, onReplaceType }:
   { api: DocFlowApi; design: ProcessDesign; setSettings: (p: Partial<ProcessSettings>) => void; onType: (t: DocType) => void;
+    /** A type saved, or copied for this process only, in the edit panel: the process reads it (oldId: the type it replaces). */
+    onReplaceType?: (t: DocType, oldId: string) => void;
     /** Several kinds: the process recognises each of these types (the first is the main one). */
     onTypes?: (t: DocType[]) => void }) {
   const [types, reload] = useLoad(() => api.docTypes(), [api]);
   const [pending, setPending] = useState<{ type: DocType; addField: boolean; n: number } | null>(null);
   const [teaching, setTeaching] = useState(false);
   const [naming, setNaming] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);   // the type open in the edit panel
   if (!types) return <Loading />;
 
   const s = design.settings;
@@ -83,7 +87,7 @@ export function ClassificationStep({ api, design, setSettings, onType, onTypes }
 
           <section className="df-sec" aria-label="What is read">
             <div className="df-sec-head"><b>What is read{chosen && !anyType ? ": " + chosen.name : ""}</b><span className="df-grow" />
-              {chosen && !anyType && <a href={dfHash() + "types/" + encodeURIComponent(chosen.id)} style={{ fontWeight: 600 }}>Edit this type ↗</a>}</div>
+              {chosen && !anyType && <button type="button" className="df-link" style={{ fontWeight: 600 }} onClick={() => setEditing(chosen.id)}>Edit this type</button>}</div>
             <div className="df-sec-body">
               {anyType ? <p className="df-small" style={{ margin: 0 }}>Each type's fields are in Libraries, <a href={dfHash() + "types"}>Document types</a>.</p>
                 : !chosen ? <p className="df-small" style={{ margin: 0 }}>Choose a document type on the left.</p> : <>
@@ -105,6 +109,10 @@ export function ClassificationStep({ api, design, setSettings, onType, onTypes }
       {/* a type made here opens in full until it is created; then it is shown read-only as any other */}
       {pending && <DocTypeEditor key={"new-" + pending.n} api={api} value={pending.type} addField={pending.addField} showTest={false}
         onSaved={(t) => { setPending(null); reload(); onType(t); }} onDiscard={() => setPending(null)} />}
+
+      {editing && <TypePanel api={api} typeId={editing} processName={design.name} step="step 3" onClose={() => setEditing(null)}
+        onSaved={(t) => { reload(); onReplaceType?.(t, t.id); }}
+        onCopied={(copy, from) => { reload(); onReplaceType?.(copy, from.id); setEditing(copy.id); }} />}
 
       {teaching && <TeachDialog api={api} onClose={() => setTeaching(false)} onProposal={(d) => { setTeaching(false); propose(d, false); }} />}
       {naming && <NameDialog onClose={() => setNaming(false)} onDone={(name) => {

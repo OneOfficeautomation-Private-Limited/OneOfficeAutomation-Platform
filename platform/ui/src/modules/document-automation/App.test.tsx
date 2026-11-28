@@ -99,7 +99,7 @@ describe("Document Automation", () => {
     const extract = screen.getByRole("region", { name: "Data extraction" });
     const read = await within(extract).findByRole("table", { name: /^Fields of / });
     expect(within(read).getAllByRole("row").length).toBeGreaterThan(1);
-    expect(within(extract).getByRole("link", { name: "Edit this type ↗" }).getAttribute("href")).toMatch(/^#\/types\//);
+    expect(within(extract).getByRole("button", { name: "Edit this type" })).toBeTruthy();   // opens beside the step (Nav A)
     await waitFor(() => expect(within(extract).getByText(/^Read by/).textContent).not.toMatch(/the default engine/));
     expect(within(extract).getByLabelText("Monthly budget for cloud and AI reading (optional)")).toBeTruthy();
     expect(within(extract).getByText("USD")).toBeTruthy();                             // the currency once, by the box
@@ -128,7 +128,22 @@ describe("Document Automation", () => {
     const read = within(step).getByRole("region", { name: "What is read" });
     expect(within(read).getByRole("table", { name: "Fields of Supplier invoice" })).toBeTruthy();
     expect(within(read).getByText(/A bill from a supplier asking for payment/)).toBeTruthy();
-    expect(within(read).getByRole("link", { name: "Edit this type ↗" }).getAttribute("href")).toBe("#/types/supplier-invoice");
+    // Nav A (28 Nov 2026): Edit this type opens the type beside the step; Save brings you back; a shared type can be copied
+    fireEvent.click(within(read).getByRole("button", { name: "Edit this type" }));
+    const panel = await screen.findByRole("dialog", { name: "Supplier invoice" });
+    expect(within(panel).getByLabelText("Where you are").textContent).toBe("Supplier invoices KSA › step 3 › document type");
+    expect(within(panel).getByRole("link", { name: "Open in Libraries ↗" }).getAttribute("target")).toBe("_blank");
+    expect(within(panel).getByRole("note").textContent).toMatch(/^Shared: Supplier invoices KSA and 1 more process read this type/);
+    fireEvent.change(within(panel).getByLabelText("Type name"), { target: { value: "Supplier invoice" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Make a copy for Supplier invoices KSA only" }));
+    await within(panel).findByText(/Copy made: Supplier invoices KSA now reads/);
+    expect((within(panel).getByLabelText("Type name") as HTMLInputElement).value).toBe("Supplier invoice (Supplier invoices KSA)");
+    expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice-supplier-invoices-ksa");
+    fireEvent.change(within(panel).getByLabelText(/Description/), { target: { value: "Invoices from KSA suppliers only." } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and back to step 3" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Supplier invoice/ })).toBeNull());
+    expect(within(step).getByText(/Invoices from KSA suppliers only/)).toBeTruthy();
+    fireEvent.change(within(step).getByLabelText("Document type"), { target: { value: "supplier-invoice" } });
     expect(screen.queryByRole("region", { name: "Fields to read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add field" })).toBeNull();
     fireEvent.change(within(step).getByLabelText("Document type"), { target: { value: "receipt" } });

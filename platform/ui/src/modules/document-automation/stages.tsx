@@ -7,6 +7,7 @@ import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle, ChoiceOrOwn, Hint, dfHash, duration } from "./ui";
 import { READ, SHOWN_FIELDS } from "./ClassificationStep";
 import { PlatformFolderField } from "./dialogs";
+import { TypePanel } from "./typePanel";
 import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
@@ -234,7 +235,12 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
 /** Engines that copy values from the page only: they cannot work a value out or pick one (fields read "By AI"). */
 const COPY_ONLY = new Set(["builtin-rules", "azure-di", "aws-textract", "google-docai", "abbyy"]);
 
-export function ExtractStage({ s, set, api, processId, types = [] }: { s: ProcessSettings; set: SetSettings; api?: DocFlowApi; processId?: string; types?: { id: string; name: string }[] }) {
+export function ExtractStage({ s, set, api, processId, processName = "", types = [], onReplaceType }: { s: ProcessSettings; set: SetSettings; api?: DocFlowApi; processId?: string;
+  processName?: string; types?: { id: string; name: string }[];
+  /** A type saved, or copied for this process only, in the edit panel: the process reads it (oldId: the type it replaces). */
+  onReplaceType?: (t: DocType, oldId: string) => void }) {
+  const [editing, setEditing] = useState<string | null>(null);   // the type open in the edit panel
+  const [typesLoaded, setTypesLoaded] = useState(0);
   const [advanced, setAdvanced] = useState(s.extraction !== "auto" || Object.keys(s.extractionByType ?? {}).length > 0);   // a chosen engine is shown, not hidden
   // the engines that read fields on this server's DocFlow (any option pack), else the usual list
   const [engines, setEngines] = useState(EXTRACTION);
@@ -255,9 +261,9 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
       setDefaultName(all.find((x) => x.id === d)?.name ?? d);
       if (e.prices?.currency) setCurrency(e.prices.currency);
     }, () => undefined);
-    api.docTypes().then(setDocTypes, () => setDocTypes([]));
     if (processId) api.processSpend(processId).then(setSpend, () => setSpend(null));
   }, [api, processId]);
+  useEffect(() => { api?.docTypes().then(setDocTypes, () => setDocTypes([])); }, [api, typesLoaded]);
   const byType = s.extractionByType ?? {};
   const cur = currency ?? spend?.currency ?? "USD";
   const nameOf = (id: string) => id === "auto" ? (defaultName ?? "the default engine") : engines.find((x) => x.value === id)?.label ?? id;
@@ -282,7 +288,8 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
               return (
                 <div key={t.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}><b>{d?.name ?? t.name}</b><span className="df-grow" />
-                    <a href={dfHash() + "types/" + encodeURIComponent(t.id)} style={{ fontWeight: 600 }}>Edit this type ↗</a></div>
+                    {api ? <button type="button" className="df-link" style={{ fontWeight: 600 }} onClick={() => setEditing(t.id)}>Edit this type</button>
+                      : <a href={dfHash() + "types/" + encodeURIComponent(t.id)} style={{ fontWeight: 600 }}>Edit this type</a>}</div>
                   {d && d.fields.length ? <table className="df-table cc-no-filter" aria-label={"Fields of " + d.name}>
                     <thead><tr><th>Field</th><th>Kind</th><th>Read</th><th>Required</th></tr></thead>
                     <tbody>{d.fields.slice(0, SHOWN_FIELDS).map((f) => <tr key={f.key}><td>{f.label}</td><td>{f.type}</td><td>{READ[f.method ?? "copy"]}</td><td>{f.required ? "Yes" : "No"}</td></tr>)}</tbody>
@@ -293,6 +300,10 @@ export function ExtractStage({ s, set, api, processId, types = [] }: { s: Proces
             })}
         </div>
       </section>
+
+      {editing && api && <TypePanel api={api} typeId={editing} processName={processName} step="step 4" onClose={() => setEditing(null)}
+        onSaved={(t) => { setTypesLoaded((n) => n + 1); onReplaceType?.(t, t.id); }}
+        onCopied={(copy, from) => { setTypesLoaded((n) => n + 1); onReplaceType?.(copy, from.id); setEditing(copy.id); }} />}
 
       <section className="df-sec" aria-label="Who reads the fields">
         <div className="df-sec-head"><b>Who reads the fields</b></div>
