@@ -241,6 +241,9 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
+/** Step 7: one delivery sent (a test, or a document going out). */
+export interface DeliveryResult { delivery: string; type: string; ok: boolean; detail: string }
+export interface DeliveryLogRow { delivery: string; type: string; ok: boolean; detail: string; ts: string; documentId: string }
 /** Step 6: how much goes to review (DocFlow 3.4.1). */
 export type ReviewMode = "unsure" | "all" | "none";
 /** What a check may compare a field with (step 5): a number, a date, or text. */
@@ -406,6 +409,14 @@ export interface DocFlowApi {
   folders(): Promise<string[]>;
   /** DA-1: the vault values the person may use (folder/credential/attribute), for pickers instead of typing references. */
   vaultRefs(): Promise<{ ref: string; label: string }[]>;
+  /** Step 7: sends the last finished document through one saved delivery now (DocFlow's delivery test). */
+  testDelivery(processId: string, deliveryId: string): Promise<DeliveryResult[]>;
+  /** Step 7: what the process's deliveries sent, newest first. */
+  deliveryLog(processId: string): Promise<DeliveryLogRow[]>;
+  /** Step 7: the agents a "Start an agent" delivery can start (their paths in the agent repository). */
+  agentPaths(): Promise<string[]>;
+  /** Step 7: the runner pools an agent can run on. */
+  runnerPools(): Promise<{ id: string; name: string }[]>;
   /** DA-1: whether "Sign in with Microsoft" is offered for email inboxes (a Microsoft app is set up). */
   msSignInReady(): Promise<boolean>;
   /** Starts "Sign in with Microsoft": the person types the code at Microsoft; then ask msSignInPoll until it is done. */
@@ -789,6 +800,16 @@ export class SampleApi implements DocFlowApi {
     return { processId: target };
   }
   async folders() { return ["Finance/Accounts payable", "Finance/Expenses", "Operations/Goods received", "Shared/Unsorted"]; }
+  private sent: DeliveryLogRow[] = [];
+  async testDelivery(_processId: string, deliveryId: string) {
+    const d = this.designs[_processId]?.deliveries.find((x) => x.id === deliveryId) ?? DESIGN.deliveries.find((x) => x.id === deliveryId);
+    const r = { delivery: d?.name ?? deliveryId, type: d?.type ?? "webhook", ok: true, detail: d?.target ? "sent to " + d.target : "sent" };
+    this.sent = [{ ...r, ts: new Date().toISOString(), documentId: "sample" }, ...this.sent];
+    return [r];
+  }
+  async deliveryLog(_processId: string) { return copy(this.sent); }
+  async agentPaths() { return ["Finance/Post invoice to ERP.flow.json", "Finance/Upload to SharePoint.flow.json", "Shared/Send to SFTP.flow.json"]; }
+  async runnerPools() { return [{ id: "finance", name: "Finance runners" }, { id: "night", name: "Night shift" }]; }
   async vaultRefs() { return [{ ref: "mail/invoices/password", label: "mail · invoices · password" }, { ref: "m365/app/secret", label: "m365 · app · secret" }]; }
   private msPolls = 0;
   async msSignInReady() { return true; }

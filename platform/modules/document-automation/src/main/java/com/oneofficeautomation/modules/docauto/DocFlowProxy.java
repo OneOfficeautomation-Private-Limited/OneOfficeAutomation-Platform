@@ -406,6 +406,21 @@ public final class DocFlowProxy {
                 changed = true;
                 continue;
             }
+            // a webhook header from the vault (DocFlow 3.4.1, "vault:folder/credential/attribute"): read at delivery time
+            // as the person who sets it up, who must be allowed to use that vault entry
+            if (o instanceof Map<?, ?> hook && "webhook".equals(hook.get("type")) && hook.get("params") instanceof Map<?, ?> hp
+                    && hp.get("headers") instanceof Map<?, ?> hs && hs.values().stream().anyMatch(v -> String.valueOf(v).startsWith("vault:"))) {
+                for (Object v : hs.values()) {
+                    String s = String.valueOf(v);
+                    if (s.startsWith("vault:")) vaultAccess(u.username(), u.role(), s.substring("vault:".length()).trim());
+                }
+                Map<String, Object> d = (Map<String, Object>) hook;
+                Map<String, Object> p = new LinkedHashMap<>((Map<String, Object>) hp);
+                p.put("requestedBy", u.username());
+                d.put("params", p);
+                changed = true;
+                continue;
+            }
             if (!(o instanceof Map<?, ?> raw) || !"start_bot".equals(raw.get("type"))) continue;
             Map<String, Object> d = (Map<String, Object>) raw;
             Map<String, Object> p = d.get("params") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();

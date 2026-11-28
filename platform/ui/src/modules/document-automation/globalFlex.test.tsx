@@ -174,7 +174,10 @@ describe("the leftovers (25 Nov 2026)", () => {
     fireEvent.change(within(d).getByLabelText("Where"), { target: { value: "s3" } });
     fireEvent.change(within(d).getByLabelText("Bucket"), { target: { value: "invoices" } });
     fireEvent.change(within(d).getByLabelText(/^Region/), { target: { value: "eu-central-1" } });
-    fireEvent.change(within(d).getByLabelText(/^Secret key \(vault\)/), { target: { value: "store/s3/secret" } });
+    // step 7 (28 Nov 2026): the key is chosen from the vault, not typed
+    const vault = await within(d).findByRole("group", { name: "Vault reference" });
+    fireEvent.change(within(vault).getByLabelText("Vault folder"), { target: { value: "m365" } });
+    fireEvent.change(within(vault).getByLabelText("Credential"), { target: { value: "app" } });
     fireEvent.click(within(d).getByRole("checkbox", { name: "The text and tables (Markdown)" }));
     fireEvent.click(within(d).getByRole("button", { name: "Save" }));
     expect(screen.getByText(/Cloud storage \(S3, Azure Blob, a web address\) · invoices/)).toBeTruthy();
@@ -248,6 +251,46 @@ describe("the leftovers (25 Nov 2026)", () => {
     expect(within(step).getByText(/failed checks \(step 5\) and missing or invalid values still do/)).toBeTruthy();
     expect(within(step).queryByLabelText("Stricter fields")).toBeNull();
     expect(within(step).getByText(/can start an agent/)).toBeTruthy();
+  });
+
+  it("step 7: agents and pools from lists, secret headers from the vault, a test sent and the delivery log", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/deliver");
+    fireEvent.click(await screen.findByRole("button", { name: "Add delivery" }));
+    let d = await screen.findByRole("dialog", { name: "Add delivery" });
+    expect(within(d).getByText("Usually: Done with no review, and Approved by a reviewer.")).toBeTruthy();
+    fireEvent.change(within(d).getByLabelText("Send results to"), { target: { value: "start_bot" } });
+    const agent = await within(d).findByLabelText("Agent") as HTMLSelectElement;
+    expect([...agent.options].map((o) => o.textContent)).toContain("Finance/Post invoice to ERP");   // shown without .flow.json
+    fireEvent.change(agent, { target: { value: "Finance/Post invoice to ERP.flow.json" } });
+    const pool = within(d).getByLabelText(/^Runner pool/) as HTMLSelectElement;
+    expect([...pool.options].map((o) => o.textContent)).toEqual(["Your default runner", "Finance runners", "Night shift"]);
+    fireEvent.change(pool, { target: { value: "finance" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add delivery" }));
+    d = await screen.findByRole("dialog", { name: "Add delivery" });
+    fireEvent.change(within(d).getByLabelText("Send results to"), { target: { value: "webhook" } });
+    fireEvent.change(within(d).getByLabelText("Address"), { target: { value: "https://erp.example.com/in" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Add a secret header" }));
+    const vault = await within(d).findByRole("group", { name: "Vault reference" });
+    fireEvent.change(within(vault).getByLabelText("Vault folder"), { target: { value: "m365" } });
+    fireEvent.change(within(vault).getByLabelText("Credential"), { target: { value: "app" } });
+    fireEvent.change(within(d).getByLabelText(/^Headers/), { target: { value: "X-Tenant: acme" } });
+    fireEvent.click(within(d).getByRole("button", { name: "Save" }));
+    const step = screen.getByRole("region", { name: "Export & integration" });
+    // a test needs the saved delivery
+    const tests = within(step).getAllByRole("button", { name: "Send a test" }) as HTMLButtonElement[];
+    expect(tests[0].disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]);
+    await screen.findByRole("button", { name: "Saved" });
+    const saved = await api.processDesign("supplier-invoices-ksa");
+    expect(saved.deliveries.find((x) => x.type === "webhook")!.headers).toEqual({ "X-Api-Key": "vault:m365/app/secret", "X-Tenant": "acme" });
+    expect(saved.deliveries.find((x) => x.type === "start_bot")).toMatchObject({ target: "Finance/Post invoice to ERP.flow.json", pool: "finance" });
+    expect(within(step).getByLabelText("Last sent: Webhook").textContent).toBe("Not sent yet");
+    fireEvent.click(within(step).getAllByRole("button", { name: "Send a test" })[1]);
+    expect((await within(step).findByRole("status")).textContent).toBe("Test sent: sent to https://erp.example.com/in");
+    await waitFor(() => expect(within(step).getByLabelText("Last sent: Webhook").textContent).toMatch(/^Last sent .+ · OK$/));
+    fireEvent.click(within(step).getByRole("button", { name: "Delivery log (1)" }));
+    expect(within(within(step).getByRole("table", { name: "Delivery log" })).getByText("Webhook")).toBeTruthy();
   });
 
   it("reads Gmail with an app password and POP3 inboxes", async () => {

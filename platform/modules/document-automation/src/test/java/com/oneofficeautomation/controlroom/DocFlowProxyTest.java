@@ -395,6 +395,13 @@ class DocFlowProxyTest {
         assertTrue(got("PUT", "/api/docs/v1/df/flows/ap").get("body").contains("\"requestedBy\":\"admin\""));
         HttpResponse<String> denied = call("PUT", "/api/docflow/df/flows/ap", store.replace("SECRET", "private/key/value"));
         assertEquals(403, denied.statusCode(), denied.body());
+        // a webhook header from the vault (DocFlow 3.4.1): stamped with its author, who must be allowed to use the entry
+        String hook = "{\"name\":\"AP\",\"deliveries\":[{\"type\":\"webhook\",\"params\":{\"url\":\"https://erp.example.com/in\",\"headers\":{\"X-Api-Key\":\"vault:SECRET\",\"X-Tenant\":\"acme\"}}}]}";
+        seen.clear();
+        assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", hook.replace("SECRET", "docflow/service/token")).statusCode());
+        String sentHook = got("PUT", "/api/docs/v1/df/flows/ap").get("body");
+        assertTrue(sentHook.contains("\"requestedBy\":\"admin\"") && sentHook.contains("\"X-Api-Key\":\"vault:docflow/service/token\""), sentHook);
+        assertEquals(403, call("PUT", "/api/docflow/df/flows/ap", hook.replace("SECRET", "private/key/value")).statusCode());
         assertEquals(401, HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/docflow-callback/secret")).header("Authorization", "Bearer nope")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"requestedBy\":\"admin\",\"ref\":\"docflow/service/token\"}")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
     }

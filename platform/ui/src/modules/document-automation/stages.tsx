@@ -8,7 +8,8 @@ import { AdvancedToggle, ChoiceOrOwn, Hint, dfHash, duration } from "./ui";
 import { READ, SHOWN_FIELDS } from "./ClassificationStep";
 import { PlatformFolderField } from "./dialogs";
 import { TypePanel } from "./typePanel";
-import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type Accuracy, type ReviewMode, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { VaultPicker, type VaultRef } from "../../components";
+import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type Accuracy, type ReviewMode, type DeliveryLogRow, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -461,20 +462,57 @@ function ReviewLevels({ s, set }: { s: ProcessSettings; set: SetSettings }) {
   );
 }
 
-export function DeliverStage({ deliveries, onEdit, onRemove, onAdd }:
-  { deliveries: Delivery[]; onEdit: (d: Delivery) => void; onRemove: (id: string) => void; onAdd: () => void }) {
+const when = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }); };
+
+/**
+ * Step 7, Export & integration (walkthrough 28 Nov 2026): each delivery with what it last sent, a Send a test (the
+ * last finished document, through that delivery, now) and the full delivery log.
+ */
+export function DeliverStage({ deliveries, onEdit, onRemove, onAdd, api, processId, dirty = false }:
+  { deliveries: Delivery[]; onEdit: (d: Delivery) => void; onRemove: (id: string) => void; onAdd: () => void; api?: DocFlowApi; processId?: string; dirty?: boolean }) {
+  const [log, setLog] = useState<DeliveryLogRow[] | null>(null);
+  const [tested, setTested] = useState<Record<string, { busy?: boolean; text?: string; ok?: boolean }>>({});
+  const [showLog, setShowLog] = useState(false);
+  const reload = () => { if (api && processId) api.deliveryLog(processId).then(setLog, () => setLog(null)); };
+  useEffect(reload, [api, processId]);
+  const last = (d: Delivery) => log?.find((r) => r.delivery === (d.name || DELIVERY_KIND[d.type].label));
+  const test = async (d: Delivery) => {
+    if (!api || !processId) return;
+    setTested({ ...tested, [d.id]: { busy: true } });
+    try {
+      const r = (await api.testDelivery(processId, d.id))[0];
+      setTested((t) => ({ ...t, [d.id]: r ? { ok: r.ok, text: (r.ok ? "Test sent: " : "Test failed: ") + r.detail } : { ok: false, text: "Nothing was sent" } }));
+    } catch (e) {
+      setTested((t) => ({ ...t, [d.id]: { ok: false, text: "Test failed: " + (e instanceof Error ? e.message : String(e)) } }));
+    }
+    reload();
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {!deliveries.length && <div className="df-empty">Nothing is delivered yet. Results stay in DocFlow until you add a delivery.</div>}
-      {deliveries.map((d) => (
-        <div key={d.id} className="df-way" style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span style={{ minWidth: 0, flex: 1 }}><b>{d.name || DELIVERY_KIND[d.type].label}</b>
-            <span className="df-small" style={{ display: "block", overflowWrap: "anywhere" }}>{DELIVERY_KIND[d.type].label} · {d.target || "not set"} · when {d.on.map((o) => SEND_ON.find(([k]) => k === o)?.[1].toLowerCase() ?? o).join(", ")}{d.enabled ? "" : " · off"}</span></span>
-          <Button kind="plain" onClick={() => onEdit(d)}>Edit</Button>
-          <Button kind="plain" onClick={() => onRemove(d.id)}>Remove</Button>
-        </div>
-      ))}
-      <div><Button icon="plus" onClick={onAdd}>Add delivery</Button></div>
+      {deliveries.map((d) => {
+        const l = last(d), t = tested[d.id];
+        return (
+          <div key={d.id} className="df-way" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ minWidth: 0, flex: 1 }}><b>{d.name || DELIVERY_KIND[d.type].label}</b>
+              <span className="df-small" style={{ display: "block", overflowWrap: "anywhere" }}>{DELIVERY_KIND[d.type].label} · {d.target || "not set"} · when {d.on.map((o) => SEND_ON.find(([k]) => k === o)?.[1].toLowerCase() ?? o).join(", ")}{d.enabled ? "" : " · off"}</span>
+              <span className={"df-small" + (l && !l.ok ? " df-text-warn" : "")} aria-label={"Last sent: " + (d.name || DELIVERY_KIND[d.type].label)} style={{ display: "block" }}>
+                {l ? `Last sent ${when(l.ts)} · ${l.ok ? "OK" : "Failed: " + l.detail}` : "Not sent yet"}</span>
+              {t?.text && <span role="status" className={"df-small" + (t.ok ? "" : " df-text-warn")} style={{ display: "block" }}>{t.text}</span>}</span>
+            {api && processId && <Button kind="plain" disabled={dirty || !!t?.busy} title={dirty ? "Save the process first: the test uses the saved delivery" : "Sends the last finished document through this delivery now"}
+              onClick={() => test(d)}>{t?.busy ? "Sending…" : "Send a test"}</Button>}
+            <Button kind="plain" onClick={() => onEdit(d)}>Edit</Button>
+            <Button kind="plain" onClick={() => onRemove(d.id)}>Remove</Button>
+          </div>
+        );
+      })}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Button icon="plus" onClick={onAdd}>Add delivery</Button>
+        {log && log.length > 0 && <button type="button" className="df-link" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
+          {showLog ? "Hide the delivery log" : `Delivery log (${log.length})`}</button>}</div>
+      {showLog && log && <table className="df-table cc-no-filter" aria-label="Delivery log">
+        <thead><tr><th>When</th><th>Delivery</th><th>Result</th></tr></thead>
+        <tbody>{log.slice(0, 50).map((r, i) => <tr key={i}><td>{when(r.ts)}</td><td>{r.delivery}</td><td className={r.ok ? "" : "df-text-warn"}>{r.ok ? "OK" : "Failed"}{r.detail ? " · " + r.detail : ""}</td></tr>)}</tbody>
+      </table>}
     </div>
   );
 }
@@ -485,6 +523,16 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
   { open: boolean; value: Delivery | null; onClose: () => void; onSave: (d: Delivery) => void; api?: DocFlowApi; processId?: string }) {
   const [d, setD] = useState<Delivery>(() => value ?? { id: newId("d"), type: "excel", name: "", enabled: true, target: "", on: ["success", "validated"] });
   const kind = DELIVERY_KIND[d.type];
+  // step 7: the agents, runner pools and vault entries offered as lists (null: not readable here, so typed)
+  const [agents, setAgents] = useState<string[] | null | undefined>(undefined);
+  const [pools, setPools] = useState<{ id: string; name: string }[] | null>(null);
+  const [vault, setVault] = useState<VaultRef[] | null | undefined>(undefined);
+  useEffect(() => {
+    if (!api) { setAgents(null); setVault(null); return; }
+    api.agentPaths().then(setAgents, () => setAgents(null));
+    api.runnerPools().then(setPools, () => setPools(null));
+    api.vaultRefs().then((rs) => setVault(rs.map((r) => { const [locker = "", name = "", attribute = ""] = r.ref.split("/"); return { locker, name, attribute }; })), () => setVault(null));
+  }, [api]);
   return (
     <Dialog open={open} onClose={onClose} title={value ? "Edit delivery" : "Add delivery"} width={560}
       footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!d.target.trim() || !d.on.length} onClick={() => onSave({ ...d, name: d.name.trim() || kind.label, target: d.target.trim() })}>Save</Button></>}>
@@ -502,12 +550,18 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
             value={d.target} placeholder={kind.placeholder} file={d.type === "excel" ? "register.xlsx" : undefined} processId={processId}
             hint={d.type === "folder" ? "Each document's values and file go in a folder named after its status (success, validated...)." : "One sheet per document type, a row for each document."}
             onChange={(v) => setD({ ...d, target: v })} />
+        : d.type === "start_bot" && agents ? <Field label="Agent" hint="It runs as you, with the document's values as inputs (document, document_id, or any field by its name).">
+            {(id) => <Select id={id} value={d.target} onChange={(e) => setD({ ...d, target: e.target.value })} noun="agents"
+              options={[{ value: "", label: agents.length ? "Choose an agent" : "No agents you may run" },
+                ...(d.target && !agents.includes(d.target) && !agents.includes(d.target + ".flow.json") ? [{ value: d.target, label: d.target }] : []),
+                ...agents.map((a) => ({ value: a, label: a.replace(/\.flow\.json$/i, ""), group: a.includes("/") ? a.slice(0, a.lastIndexOf("/")) : "Agents" }))]} />}
+          </Field>
         : <Field label={d.type === "cloud_storage" ? ({ s3: "Bucket", azure_blob: "Container address", http_put: "Address ({file} is the file name)" } as Record<string, string>)[String(d.extra?.provider ?? "azure_blob")] : kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
             {(id) => <TextInput id={id} value={d.target} onChange={(e) => setD({ ...d, target: e.target.value })}
               placeholder={d.type === "cloud_storage" ? ({ s3: "invoices", azure_blob: "https://account.blob.core.windows.net/invoices", http_put: "https://files.example.com/upload/{file}" } as Record<string, string>)[String(d.extra?.provider ?? "azure_blob")] : kind.placeholder} />}
           </Field>}
       {d.type === "start_bot" && <p className="df-small" style={{ margin: 0 }}>Use an agent for SFTP, an ERP, SharePoint or any other system: it gets the document and its values, and uses its own steps and vault credentials.</p>}
-      {(d.type === "email" || d.type === "cloud_storage") && <OutSettings d={d} setD={setD} />}
+      {(d.type === "email" || d.type === "cloud_storage") && <OutSettings d={d} setD={setD} vault={vault} />}
       {d.type === "folder" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={!!d.searchablePdf} onChange={(e) => setD({ ...d, searchablePdf: e.target.checked })} />
         Also save a searchable PDF (its text can be searched and copied)</label>}
@@ -517,18 +571,23 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
       {d.type === "webhook" && <div className="df-grid" style={{ gridTemplateColumns: "1fr 3fr", gap: 12 }}>
         <Field label="Method">{(id) => <Select id={id} value={d.method ?? "POST"} onChange={(e) => setD({ ...d, method: e.target.value as Delivery["method"] })}
           options={["POST", "PUT", "PATCH"].map((m) => ({ value: m, label: m }))} />}</Field>
-        <Field label="Headers (optional)" hint="One per line, Name: value, such as X-Api-Key: ... (sent with every delivery).">
-          {(id) => <textarea id={id} className="ui-input" rows={2} value={Object.entries(d.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n")}
-            onChange={(e) => setD({ ...d, headers: Object.fromEntries(e.target.value.split("\n").map((l) => l.split(/:(.*)/s)).filter(([k, v]) => k?.trim() && v !== undefined).map(([k, v]) => [k.trim(), v.trim()])) })} />}
+        <Field label="Headers (optional)" hint="One per line, Name: value, such as X-Tenant: acme. A key or password goes under Secret headers.">
+          {(id) => <textarea id={id} className="ui-input" rows={2} value={Object.entries(d.headers ?? {}).filter(([, v]) => !v.startsWith(VAULT)).map(([k, v]) => `${k}: ${v}`).join("\n")}
+            onChange={(e) => setD({ ...d, headers: { ...secretHeaders(d), ...Object.fromEntries(e.target.value.split("\n").map((l) => l.split(/:(.*)/s)).filter(([k, v]) => k?.trim() && v !== undefined).map(([k, v]) => [k.trim(), v.trim()])) } })} />}
         </Field>
       </div>}
+      {d.type === "webhook" && <SecretHeaders d={d} setD={setD} vault={vault} />}
       {d.type === "start_bot" && (
         <Field label="Runner pool (optional)" hint="Empty: your default runner.">
-          {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}
+          {(id) => pools ? <Select id={id} value={d.pool ?? ""} onChange={(e) => setD({ ...d, pool: e.target.value })}
+            options={[{ value: "", label: "Your default runner" }, ...(d.pool && !pools.some((x) => x.id === d.pool) ? [{ value: d.pool, label: d.pool }] : []),
+              ...pools.map((x) => ({ value: x.id, label: x.name }))]} />
+            : <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}
         </Field>
       )}
       <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
         <legend style={{ fontWeight: 600, padding: 0, marginBottom: 6 }}>Send when a document is</legend>
+        <p className="df-small" style={{ margin: "0 0 6px" }}>Usually: Done with no review, and Approved by a reviewer.</p>
         <div className="df-grid df-g2" style={{ gap: 6 }}>
           {SEND_ON.map(([k, label]) => (
             <label key={k} style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -543,7 +602,7 @@ export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
 }
 
 /** The settings of an e-mail or a cloud storage delivery: subject, or where and with which key; and the files sent. */
-function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) {
+function OutSettings({ d, setD, vault }: { d: Delivery; setD: (d: Delivery) => void; vault?: VaultRef[] | null }) {
   const x = d.extra ?? {};
   const set = (k: string, v: unknown) => setD({ ...d, extra: { ...x, [k]: v } });
   const files = (x.files as string[] | undefined) ?? ["original", "json"];
@@ -559,8 +618,10 @@ function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) 
         <div className={`df-grid ${provider === "s3" ? "df-g3" : "df-g2"}`}>
           {provider === "s3" && <>{text("region", "Region", "eu-central-1")}{text("endpoint", "Endpoint (optional)", "https://minio.example.com", "Empty: Amazon S3.")}{text("accessKey", "Access key id", "AKIA...")}</>}
           {text("prefix", "Folder in it (optional)", "invoices/2026")}
-          {text("secretRef", provider === "s3" ? "Secret key (vault)" : provider === "azure_blob" ? "SAS token (vault)" : "Authorization header (vault, optional)", "folder/credential/attribute",
-            "A vault reference you may use; the value is read at delivery time and never stored with the process.")}
+          <Field label={provider === "s3" ? "Secret key (vault)" : provider === "azure_blob" ? "SAS token (vault)" : "Authorization header (vault, optional)"}
+            hint="From the vault; the value is read at delivery time and never stored with the process.">
+            {(id) => <VaultPicker id={id} value={String(x.secretRef ?? "") || null} list={vault} onChange={(ref) => set("secretRef", ref ?? "")} />}
+          </Field>
         </div>
       </>}
       <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
@@ -570,6 +631,32 @@ function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) 
             onChange={(e) => set("files", e.target.checked ? [...files, k] : files.filter((f) => f !== k))} />{label}</label>))}</div>
       </fieldset>
     </div>
+  );
+}
+
+/** A webhook header from the vault (DocFlow 3.4.1): read at delivery time, never kept with the process. */
+const VAULT = "vault:";
+const secretHeaders = (d: Delivery) => Object.fromEntries(Object.entries(d.headers ?? {}).filter(([, v]) => v.startsWith(VAULT)));
+
+/** Step 7: headers whose value is a key or password, each from the vault. */
+function SecretHeaders({ d, setD, vault }: { d: Delivery; setD: (d: Delivery) => void; vault?: VaultRef[] | null }) {
+  const rows = Object.entries(secretHeaders(d));
+  const plain = Object.fromEntries(Object.entries(d.headers ?? {}).filter(([, v]) => !v.startsWith(VAULT)));
+  const write = (list: [string, string][]) => setD({ ...d, headers: { ...plain, ...Object.fromEntries(list.map(([k, ref]) => [k, VAULT + ref])) } });
+  return (
+    <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+      <legend style={{ fontWeight: 600, padding: 0, marginBottom: 2 }}>Secret headers (optional)</legend>
+      <span className="df-small">An API key or token from the vault, read each time it is sent and never stored with the process.</span>
+      {rows.map(([k, v], i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 8, alignItems: "start" }}>
+          <TextInput aria-label={`Secret header ${i + 1} name`} value={k} placeholder="X-Api-Key"
+            onChange={(e) => write(rows.map(([n, r], j) => [j === i ? e.target.value : n, r.slice(VAULT.length)] as [string, string]))} />
+          <VaultPicker value={v.slice(VAULT.length) || null} list={vault} onChange={(ref) => write(rows.map(([n, r], j) => [n, j === i ? ref ?? "" : r.slice(VAULT.length)] as [string, string]))} />
+          <Button kind="plain" aria-label={`Remove secret header ${k || i + 1}`} onClick={() => write(rows.filter((_, j) => j !== i).map(([n, r]) => [n, r.slice(VAULT.length)] as [string, string]))}>Remove</Button>
+        </div>
+      ))}
+      <div><Button icon="plus" onClick={() => write([...rows.map(([n, r]) => [n, r.slice(VAULT.length)] as [string, string]), ["X-Api-Key", ""]])}>Add a secret header</Button></div>
+    </fieldset>
   );
 }
 
