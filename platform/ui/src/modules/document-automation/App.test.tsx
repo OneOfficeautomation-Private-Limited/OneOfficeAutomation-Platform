@@ -140,7 +140,8 @@ describe("Document Automation", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Make a copy for Supplier invoices KSA only" }));
     await within(panel).findByText(/Copy made: Supplier invoices KSA now reads/, {}, slow);
     expect((within(panel).getByLabelText("Type name") as HTMLInputElement).value).toBe("Supplier invoice (Supplier invoices KSA)");
-    expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice-supplier-invoices-ksa");
+    // the step's list of types loads again with the copy in it
+    await waitFor(() => expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice-supplier-invoices-ksa"), slow);
     fireEvent.change(within(panel).getByLabelText(/Description/), { target: { value: "Invoices from KSA suppliers only." } });
     fireEvent.click(within(panel).getByRole("button", { name: "Save and back to step 3" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Supplier invoice/ })).toBeNull(), slow);
