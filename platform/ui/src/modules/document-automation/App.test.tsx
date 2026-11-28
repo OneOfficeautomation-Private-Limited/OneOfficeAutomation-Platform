@@ -95,6 +95,21 @@ describe("Document Automation", () => {
     expect(screen.queryByRole("combobox", { name: "Process" })).toBeNull();          // no process list in the header: step 1 is the one place
     fireEvent.click(within(steps).getByRole("tab", { name: /Data extraction/ }));
     expect(within(screen.getByRole("region", { name: "Data extraction" })).getByRole("link", { name: "Engines" }).getAttribute("href")).toBe("#/engines/routing");
+    // step 4 (28 Nov 2026): what is read (the type's fields), who reads them by name, the budget in its currency
+    const extract = screen.getByRole("region", { name: "Data extraction" });
+    const read = await within(extract).findByRole("table", { name: /^Fields of / });
+    expect(within(read).getAllByRole("row").length).toBeGreaterThan(1);
+    expect(within(extract).getByRole("link", { name: "Edit this type ↗" }).getAttribute("href")).toMatch(/^#\/types\//);
+    await waitFor(() => expect(within(extract).getByLabelText("Reading summary").textContent).toMatch(/^Read by: (?!the default).+ · Budget: none$/));
+    expect(within(extract).getByLabelText(/Monthly budget for cloud and AI reading \(USD, optional\)/)).toBeTruthy();
+    fireEvent.click(within(extract).getByRole("button", { name: "Show advanced settings" }));
+    // the engine list is long enough to be the searchable list: its value shows the default by name
+    const engine = within(extract).getByLabelText("Engine that reads the fields") as HTMLInputElement;
+    expect(engine.value).toMatch(/^Default engine \(Engines page\): .+/);
+    fireEvent.focus(engine);
+    expect(screen.queryByRole("option", { name: /Bedrock Data Automation/ })).toBeNull();   // splitters do not read fields
+    expect(screen.getAllByRole("option", { name: /Claude/ }).length).toBeGreaterThan(0);
+    fireEvent.blur(engine);
     fireEvent.click(screen.getByRole("button", { name: "step 8, Testing & go-live" }));
     const test = screen.getByRole("region", { name: "Testing & go-live" });
     expect(await within(test).findByRole("button", { name: "Run test" })).toBeTruthy();

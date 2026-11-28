@@ -4,9 +4,9 @@ import type { DocFlowApi, DocType, ProcessDesign, ProcessSettings } from "./api"
 import { DocTypeEditor, NameDialog, TeachDialog } from "./DocTypes";
 import { Loading, dfHash, useLoad } from "./ui";
 
-const READ: Record<string, string> = { copy: "From the page", "work-out": "By AI", pick: "Picked by AI" };
+export const READ: Record<string, string> = { copy: "From the page", "work-out": "By AI", pick: "Picked by AI" };
 /** How many of the type's fields step 3 lists before "and n more". */
-const SHOWN_FIELDS = 8;
+export const SHOWN_FIELDS = 8;
 
 /**
  * Step 3 of the process builder, Document classification (28 Nov 2026, artboard "DA step 3"). Only this process's

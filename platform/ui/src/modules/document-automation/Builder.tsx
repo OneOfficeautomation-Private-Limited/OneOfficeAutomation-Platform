@@ -213,7 +213,6 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
               {stage === EXTRACT && <>
                 <ExtractStage s={design.settings} set={setSettings} api={api} processId={design.id}
                   types={design.docTypeIds.map((id, i) => ({ id, name: design.docType.split(", ")[i] ?? id }))} />
-                <p className="df-small" style={{ margin: 0 }}>How pages are read (OCR, and when the cloud may be used) is set once for every process on <a href={dfHash() + "engines/routing"}>Engines</a>.</p>
               </>}
               {stage === REVIEW && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} />}
               {stage === DELIVER && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}

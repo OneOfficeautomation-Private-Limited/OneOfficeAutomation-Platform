@@ -4,9 +4,10 @@ import { HINTS } from "./help";
 import { FolderField } from "./folderPicker";
 import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
-import { AdvancedToggle, ChoiceOrOwn, Hint, duration } from "./ui";
+import { AdvancedToggle, ChoiceOrOwn, Hint, dfHash, duration } from "./ui";
+import { READ, SHOWN_FIELDS } from "./ClassificationStep";
 import { PlatformFolderField } from "./dialogs";
-import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -225,45 +226,98 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
   );
 }
 
+/**
+ * Step 4, Data extraction (walkthrough 28 Nov 2026): what is read (each type's fields, read-only, as step 3 shows
+ * them), then who reads them: the default engine by name, an engine of the process's own or one per type (advanced),
+ * and the month's budget in the price currency. A line sums it up while the advanced settings are closed.
+ */
 export function ExtractStage({ s, set, api, processId, types = [] }: { s: ProcessSettings; set: SetSettings; api?: DocFlowApi; processId?: string; types?: { id: string; name: string }[] }) {
   const [advanced, setAdvanced] = useState(s.extraction !== "auto" || Object.keys(s.extractionByType ?? {}).length > 0);   // a chosen engine is shown, not hidden
   // the engines that read fields on this server's DocFlow (any option pack), else the usual list
   const [engines, setEngines] = useState(EXTRACTION);
+  const [defaultName, setDefaultName] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
   const [spend, setSpend] = useState<{ spend: number; currency: string; localOnly: boolean } | null>(null);
+  const [docTypes, setDocTypes] = useState<DocType[] | null>(null);
   useEffect(() => {
     if (!api) return;
     api.engines().then((e) => {
-      const fields = e.options.flatMap((o) => o.engines).filter((x) => x.does !== "Reads pages");
+      const all = e.options.flatMap((o) => o.engines);
+      // recognise-and-split services (they can "split") recognise types only: they do not read fields
+      const fields = all.filter((x) => x.does !== "Reads pages" && !x.can?.includes("split"));
       if (fields.length) setEngines([EXTRACTION[0], ...fields.map((x) => ({ value: x.id, label: x.name + (x.status === "ready" ? "" : x.status === "optin" ? " (needs cloud opt-in)" : " (needs setting up)") }))]);
+      const d = e.routing.extraction || "builtin-rules";
+      setDefaultName(all.find((x) => x.id === d)?.name ?? d);
+      if (e.prices?.currency) setCurrency(e.prices.currency);
     }, () => undefined);
+    api.docTypes().then(setDocTypes, () => setDocTypes([]));
     if (processId) api.processSpend(processId).then(setSpend, () => setSpend(null));
   }, [api, processId]);
   const byType = s.extractionByType ?? {};
+  const cur = currency ?? spend?.currency ?? "USD";
+  const nameOf = (id: string) => id === "auto" ? (defaultName ?? "the default engine") : engines.find((x) => x.value === id)?.label ?? id;
+  const defaultLabel = "Default engine (Engines page)" + (defaultName ? ": " + defaultName : "");
+  const own = Object.keys(byType).length;
+  const shown = types.map((t) => docTypes?.find((d) => d.id === t.id) ?? null);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <p style={{ margin: 0 }}>The fields to read come from the document type. {s.extraction === "auto"
-        ? "They are read the way the Engines page says (on this server unless cloud reading is switched on)."
-        : "This process uses its own engine (below)."}</p>
-      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
-      {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
-        {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })}
-          options={[...engines, ...(engines.some((x) => x.value === s.extraction) ? [] : [{ value: s.extraction, label: s.extraction }])]} />}
-      </Field>}
-      {advanced && types.length > 1 && <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-        <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>An engine for each document type (optional)</legend>
-        <div className="df-grid df-g2" style={{ gap: 8 }}>{types.map((t) => (
-          <Field key={t.id} label={t.name}>{(id) => <Select id={id} value={byType[t.id] ?? ""}
-            onChange={(e) => { const next = { ...byType }; if (e.target.value) next[t.id] = e.target.value; else delete next[t.id]; set({ extractionByType: next }); }}
-            options={[{ value: "", label: "As above" }, ...engines.filter((x) => x.value !== "auto")]} />}</Field>))}
+      <section className="df-sec" aria-label="What is read">
+        <div className="df-sec-head"><b>What is read</b><span className="df-small">the fields of {types.length === 1 ? "the document type" : "each document type"}</span></div>
+        <div className="df-sec-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {!types.length ? <p className="df-small" style={{ margin: 0 }}>Choose the document type in step 3.</p>
+            : docTypes === null && api ? <span className="df-small">Loading the fields…</span>
+            : types.map((t, i) => {
+              const d = shown[i];
+              return (
+                <div key={t.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><b>{d?.name ?? t.name}</b><span className="df-grow" />
+                    <a href={dfHash() + "types/" + encodeURIComponent(t.id)} style={{ fontWeight: 600 }}>Edit this type ↗</a></div>
+                  {d && d.fields.length ? <table className="df-table" aria-label={"Fields of " + d.name}>
+                    <thead><tr><th>Field</th><th>Kind</th><th>Read</th><th>Required</th></tr></thead>
+                    <tbody>{d.fields.slice(0, SHOWN_FIELDS).map((f) => <tr key={f.key}><td>{f.label}</td><td>{f.type}</td><td>{READ[f.method ?? "copy"]}</td><td>{f.required ? "Yes" : "No"}</td></tr>)}</tbody>
+                  </table> : <span className="df-small">{d ? "No fields yet: add them with Edit this type." : "The fields are in Libraries, Document types."}</span>}
+                  {d && d.fields.length > SHOWN_FIELDS && <span className="df-small">{d.fields.length} fields · showing {SHOWN_FIELDS}.</span>}
+                </div>
+              );
+            })}
         </div>
-      </fieldset>}
-      <div className="df-grid df-g2">
-        <Field label="Monthly budget for cloud and AI reading (optional)"
-          hint={`Reached: the process reads on this server until the month ends. Empty: no limit.${spend ? ` This month so far: about ${money(spend.spend, spend.currency)}${spend.localOnly ? " (budget reached: reading on this server)" : ""}.` : ""}`}>
-          {(id) => <TextInput id={id} inputMode="decimal" value={s.monthlyBudget == null ? "" : String(s.monthlyBudget)} placeholder="No limit"
-            onChange={(e) => { const v = parseAmount(e.target.value); set({ monthlyBudget: e.target.value.trim() === "" || isNaN(v) ? null : v }); }} />}
-        </Field>
-      </div>
+      </section>
+
+      <section className="df-sec" aria-label="Who reads the fields">
+        <div className="df-sec-head"><b>Who reads the fields</b></div>
+        <div className="df-sec-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ margin: 0 }}>{s.extraction === "auto"
+            ? <>Read by <b>{defaultName ?? "the default engine"}</b>, the engine set on the Engines page.</>
+            : <>This process uses its own engine: <b>{nameOf(s.extraction)}</b>.</>}
+            {" "}How pages are read (OCR) and when the cloud may be used are set once for every process on <a href={dfHash() + "engines/routing"}>Engines</a>.</p>
+          {!advanced && <p className="df-small" aria-label="Reading summary" style={{ margin: 0 }}>
+            Read by: {nameOf(s.extraction)}{own ? ` · ${own} type${own === 1 ? "" : "s"} with an engine of ${own === 1 ? "its" : "their"} own` : ""}
+            {" · "}Budget: {s.monthlyBudget == null ? "none" : money(s.monthlyBudget, cur) + " a month"}</p>}
+          <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
+          {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
+            {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })}
+              options={[{ value: "auto", label: defaultLabel }, ...engines.filter((x) => x.value !== "auto"),
+                ...(engines.some((x) => x.value === s.extraction) ? [] : [{ value: s.extraction, label: s.extraction }])]} />}
+          </Field>}
+          {advanced && types.length > 1 && <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend className="df-small" style={{ padding: 0, marginBottom: 6 }}>An engine for each document type (optional)</legend>
+            <div className="df-grid df-g2" style={{ gap: 8 }}>{types.map((t) => (
+              <Field key={t.id} label={t.name}>{(id) => <Select id={id} value={byType[t.id] ?? ""}
+                onChange={(e) => { const next = { ...byType }; if (e.target.value) next[t.id] = e.target.value; else delete next[t.id]; set({ extractionByType: next }); }}
+                options={[{ value: "", label: "As above" }, ...engines.filter((x) => x.value !== "auto")]} />}</Field>))}
+            </div>
+          </fieldset>}
+          <div className="df-grid df-g2">
+            <Field label={`Monthly budget for cloud and AI reading (${cur}, optional)`}
+              hint={`Reached: the process reads on this server until the month ends. Empty: no limit.${spend ? ` This month so far: about ${money(spend.spend, spend.currency)}${spend.localOnly ? " (budget reached: reading on this server)" : ""}.` : ""}`}>
+              {(id) => <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <TextInput id={id} inputMode="decimal" value={s.monthlyBudget == null ? "" : String(s.monthlyBudget)} placeholder="No limit"
+                  onChange={(e) => { const v = parseAmount(e.target.value); set({ monthlyBudget: e.target.value.trim() === "" || isNaN(v) ? null : v }); }} />
+                <span className="df-small" aria-hidden="true">{cur}</span></div>}
+            </Field>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
