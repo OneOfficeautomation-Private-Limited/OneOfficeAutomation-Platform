@@ -130,19 +130,21 @@ describe("Document Automation", () => {
     expect(within(read).getByText(/A bill from a supplier asking for payment/)).toBeTruthy();
     // Nav A (28 Nov 2026): Edit this type opens the type beside the step; Save brings you back; a shared type can be copied
     fireEvent.click(within(read).getByRole("button", { name: "Edit this type" }));
-    const panel = await screen.findByRole("dialog", { name: "Supplier invoice" });
+    const slow = { timeout: 5000 };   // the panel loads the types; CI machines can be slow
+    const panel = await screen.findByRole("dialog", { name: "Supplier invoice" }, slow);
+    await within(panel).findByRole("note", {}, slow);
     expect(within(panel).getByLabelText("Where you are").textContent).toBe("Supplier invoices KSA › step 3 › document type");
     expect(within(panel).getByRole("link", { name: "Open in Libraries ↗" }).getAttribute("target")).toBe("_blank");
     expect(within(panel).getByRole("note").textContent).toMatch(/^Shared: Supplier invoices KSA and 1 more process read this type/);
     fireEvent.change(within(panel).getByLabelText("Type name"), { target: { value: "Supplier invoice" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Make a copy for Supplier invoices KSA only" }));
-    await within(panel).findByText(/Copy made: Supplier invoices KSA now reads/);
+    await within(panel).findByText(/Copy made: Supplier invoices KSA now reads/, {}, slow);
     expect((within(panel).getByLabelText("Type name") as HTMLInputElement).value).toBe("Supplier invoice (Supplier invoices KSA)");
     expect((within(step).getByLabelText("Document type") as HTMLSelectElement).value).toBe("supplier-invoice-supplier-invoices-ksa");
     fireEvent.change(within(panel).getByLabelText(/Description/), { target: { value: "Invoices from KSA suppliers only." } });
     fireEvent.click(within(panel).getByRole("button", { name: "Save and back to step 3" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Supplier invoice/ })).toBeNull());
-    expect(within(step).getByText(/Invoices from KSA suppliers only/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Supplier invoice/ })).toBeNull(), slow);
+    expect(await within(step).findByText(/Invoices from KSA suppliers only/, {}, slow)).toBeTruthy();   // after the step loads the types again
     fireEvent.change(within(step).getByLabelText("Document type"), { target: { value: "supplier-invoice" } });
     expect(screen.queryByRole("region", { name: "Fields to read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add field" })).toBeNull();
