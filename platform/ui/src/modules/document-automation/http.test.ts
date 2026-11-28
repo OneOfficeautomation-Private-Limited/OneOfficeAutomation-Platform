@@ -165,6 +165,20 @@ describe("HttpDocFlowApi", () => {
     expect(put.deliveries[0].params).toEqual({ path: "E:\\new.xlsx", sheet: "AP" });
   });
 
+  it("sends how much goes to review only to a DocFlow that has it (3.4.1)", async () => {
+    const old = fake({ "PUT /df/flows/ap": flow, "/df/flows/ap": flow, "/df/doctypes": [] });
+    const before = await old.api.processDesign("ap");
+    expect(before.settings.reviewMode).toBeUndefined();                                  // a DocFlow before 3.4.1: no choice shown
+    await old.api.saveProcess({ ...before, settings: { ...before.settings, reviewMode: "all" } });
+    expect(JSON.parse(String(old.calls.find((c) => c.method === "PUT")!.body)).review.mode).toBeUndefined();
+    const withMode = { ...flow, review: { ...flow.review, mode: "unsure" } };
+    const now = fake({ "PUT /df/flows/ap": withMode, "/df/flows/ap": withMode, "/df/doctypes": [] });
+    const d = await now.api.processDesign("ap");
+    expect(d.settings.reviewMode).toBe("unsure");
+    await now.api.saveProcess({ ...d, settings: { ...d.settings, reviewMode: "all" } });
+    expect(JSON.parse(String(now.calls.find((c) => c.method === "PUT")!.body)).review.mode).toBe("all");
+  });
+
   it("uploads a reference table and changes a document's type", async () => {
     const { api, calls } = fake({ "POST /df/reftables": { id: "suppliers" }, "POST /df/documents/d1/reclassify": { id: "d2", status: "validation" } });
     expect(await api.uploadRefTable(new File(["a,b"], "Suppliers.csv"), "Suppliers")).toEqual({ id: "suppliers" });

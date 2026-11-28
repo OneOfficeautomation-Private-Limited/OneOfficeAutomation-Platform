@@ -437,9 +437,9 @@ describe("Document Automation", () => {
     expect(within(intake).queryByRole("switch", { name: "Read e-invoice data first" })).toBeNull();   // DA-9: not shown
     fireEvent.click(screen.getByRole("tab", { name: /Human review/ }));
     fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));   // DA-1: thresholds per field are advanced
-    const levels = screen.getByRole("region", { name: "Field thresholds" });
-    fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
-    fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
+    const levels = screen.getByRole("region", { name: "Stricter for some fields" });
+    fireEvent.click(within(levels).getByRole("button", { name: "Add a stricter field" }));
+    fireEvent.click(within(levels).getByRole("button", { name: "Add a stricter field" }));
     fireEvent.change(within(levels).getByLabelText("Field 2"), { target: { value: "total" } });
     fireEvent.change(within(levels).getByLabelText("Threshold for Total"), { target: { value: "0.99" } });
     fireEvent.click(within(levels).getByRole("button", { name: "Remove threshold for Invoice number" }));

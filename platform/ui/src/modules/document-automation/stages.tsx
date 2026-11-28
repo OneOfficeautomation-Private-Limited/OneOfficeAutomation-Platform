@@ -8,7 +8,7 @@ import { AdvancedToggle, ChoiceOrOwn, Hint, dfHash, duration } from "./ui";
 import { READ, SHOWN_FIELDS } from "./ClassificationStep";
 import { PlatformFolderField } from "./dialogs";
 import { TypePanel } from "./typePanel";
-import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type Accuracy, type ReviewMode, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -350,14 +350,55 @@ const FIELD_LEVELS = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99];
 /** How often a watched folder is checked: common choices; any other number of seconds can be typed. */
 export const POLL_SECONDS = [10, 30, 60, 300, 900, 3600];
 
-export function ReviewStage({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
+const REVIEW_MODES: { value: ReviewMode; label: string; text: string }[] = [
+  { value: "unsure", label: "Only values the engine is unsure of", text: "The usual choice: what the engine is sure of goes straight through." },
+  { value: "all", label: "Every document", text: "Every document goes to a person. Good for a new process's first weeks." },
+  { value: "none", label: "Only when a check fails or a value is missing", text: "Nothing goes to review for confidence alone; failed checks (step 5) and missing or invalid values still do." },
+];
+const pct = (v: number) => Math.round(v * 1000) / 10 + "%";
+
+/**
+ * Step 6, Human review (walkthrough 28 Nov 2026): who reviews, how much (only unsure values, every document, or none
+ * for confidence; DocFlow 3.4.1), the confidence line in plain words with what it means on the documents read so far,
+ * stricter fields (shown even while folded), the review time and what an overdue review can start.
+ */
+export function ReviewStage({ s, set, fields, folder = "", api, processId }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[];
+  folder?: string; api?: DocFlowApi; processId?: string }) {
   const own = Object.keys(s.fieldThresholds ?? {}).length > 0;
   const [advanced, setAdvanced] = useState(own);   // thresholds already set are shown, not hidden
+  const [acc, setAcc] = useState<Accuracy | null>(null);
+  useEffect(() => { if (api && processId) api.accuracy(processId).then(setAcc, () => setAcc(null)); }, [api, processId]);
+  const mode = s.reviewMode ?? "unsure";
+  const inConsole = location.hash.startsWith("#/docautomation");
+  const level = acc?.levels.length ? acc.levels.reduce((a, b) => Math.abs(b.level - s.fieldConfidence) < Math.abs(a.level - s.fieldConfidence) ? b : a) : null;
+  const labelOf = (name: string) => fields.find((f) => f.name === name)?.label ?? name;
+  const stricter = Object.entries(s.fieldThresholds ?? {});
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <ReviewLevels s={s} set={set} />
-      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="stricter checks for important fields, such as the total" />
-      {advanced && <FieldThresholds s={s} set={set} fields={fields} />}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <p className="df-small" aria-label="Who reviews" style={{ margin: 0 }}>
+        <b>Who reviews:</b> people allowed to review documents who can see {folder ? <>folder <b>{folder}</b></> : "this process's folder"}, in their Task inbox.
+        {inConsole && <> <a href="#/roles">Who may review</a></>}</p>
+      {s.reviewMode !== undefined && <Field label="How much goes to a person">
+        {(id) => <Select id={id} value={mode} onChange={(e) => set({ reviewMode: e.target.value as ReviewMode })}
+          options={REVIEW_MODES.map((m) => ({ value: m.value, label: m.label }))} />}
+      </Field>}
+      {s.reviewMode !== undefined && mode !== "unsure" && <p style={{ margin: 0 }}>{REVIEW_MODES.find((m) => m.value === mode)!.text}</p>}
+      {mode === "unsure" && <>
+        <ReviewLevels s={s} set={set} />
+        <p style={{ margin: 0 }} aria-label="What the level means">Every value read comes with how sure the engine is of it. At <b>{pct(s.fieldConfidence)}</b>, a value the engine is
+          less than {pct(s.fieldConfidence)} sure of goes to a person; everything else goes straight through.
+          {level && level.straightThrough != null && acc && acc.measured > 0 && <> On the {acc.measured} values read so far, about <b>{Math.round(level.straightThrough * 100)}%</b> would
+            go straight through at {pct(level.level)}{level.wrongPassed != null ? `, and ${Math.round(level.wrongPassed * 1000) / 10}% of those were later corrected` : ""}.</>}</p>
+      </>}
+      {mode !== "unsure" && <ReviewTime s={s} set={set} />}
+      {mode !== "none" && <>
+        <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="stricter for some fields, such as the total" />
+        {!advanced && stricter.length > 0 && <p className="df-small" aria-label="Stricter fields" style={{ margin: 0 }}>
+          Stricter: {stricter.map(([n, v]) => `${labelOf(n)} under ${pct(v)}`).join(" · ")}</p>}
+        {advanced && <FieldThresholds s={s} set={set} fields={fields} />}
+      </>}
+      <p className="df-small" style={{ margin: 0 }}>A review not done within the review time shows as overdue, and can start an agent
+        {inConsole ? <> (<a href="#/triggers">Triggers</a>, On Document Automation: review overdue)</> : " (a trigger On Document Automation: review overdue)"}, for example to tell a manager.</p>
     </div>
   );
 }
@@ -369,8 +410,8 @@ function FieldThresholds({ s, set, fields }: { s: ProcessSettings; set: SetSetti
   const free = fields.filter((f) => !(f.name in (s.fieldThresholds ?? {})));
   const labelOf = (name: string) => fields.find((f) => f.name === name)?.label ?? name;
   return (
-    <section aria-label="Field thresholds" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div><b>Field thresholds</b><span className="df-small" style={{ display: "block" }}>{HINTS.fieldThresholds}</span></div>
+    <section aria-label="Stricter for some fields" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div><b>Stricter for some fields</b><span className="df-small" style={{ display: "block" }}>{HINTS.fieldThresholds}</span></div>
       {entries.length > 0 && (
         <table className="df-table df-thresholds">
           <thead><tr><th>Field</th><th>Send to review under</th><th><span className="sr-only">Actions</span></th></tr></thead>
@@ -389,8 +430,19 @@ function FieldThresholds({ s, set, fields }: { s: ProcessSettings; set: SetSetti
           </tbody>
         </table>
       )}
-      <div><Button icon="plus" disabled={!free.length} onClick={() => write([...entries, [free[0].name, 0.95]])}>Add field threshold</Button></div>
+      <div><Button icon="plus" disabled={!free.length} onClick={() => write([...entries, [free[0].name, 0.95]])}>Add a stricter field</Button></div>
     </section>
+  );
+}
+
+function ReviewTime({ s, set }: { s: ProcessSettings; set: SetSettings }) {
+  return (
+    <div className="df-grid df-g2">
+      <Field label="Review within" hint="After this, the review shows as overdue.">
+        {(id) => <ChoiceOrOwn id={id} value={s.slaHours} onChange={(v) => set({ slaHours: v })} options={[1, 4, 8, 24, 48, 72, 120]}
+          label={(v) => duration(v * 3600)} unit="hours" min={0.25} />}
+      </Field>
+    </div>
   );
 }
 

@@ -228,6 +228,28 @@ describe("the leftovers (25 Nov 2026)", () => {
     expect((within(dialog).getByLabelText("Must be true") as HTMLInputElement).value).toBe("subtotal total");
   });
 
+  it("step 6: who reviews, how much goes to a person, the level in plain words, stricter fields shown while folded", async () => {
+    const api = new SampleApi();
+    const design = await api.processDesign("supplier-invoices-ksa");
+    await api.saveProcess({ ...design, settings: { ...design.settings, fieldThresholds: { total: 0.99 } } });
+    start(api); await go("#/processes/supplier-invoices-ksa/review");
+    const step = await screen.findByRole("region", { name: "Human review" });
+    expect(within(step).getByLabelText("Who reviews").textContent).toContain("folder Finance / Accounts payable");
+    expect(within(step).getByLabelText("What the level means").textContent).toMatch(/At 85%, a value the engine is less than 85% sure of goes to a person/);
+    expect(within(step).getByRole("region", { name: "Stricter for some fields" })).toBeTruthy();   // set ones open the advanced part
+    fireEvent.click(within(step).getByRole("button", { name: "Hide advanced settings" }));
+    expect(within(step).getByLabelText("Stricter fields").textContent).toBe("Stricter: Total under 99%");
+    const how = within(step).getByLabelText("How much goes to a person") as HTMLSelectElement;
+    fireEvent.change(how, { target: { value: "all" } });
+    expect(within(step).getByText(/Every document goes to a person/)).toBeTruthy();
+    expect(within(step).queryByLabelText("What the level means")).toBeNull();
+    expect(within(step).getByLabelText("Review within")).toBeTruthy();                 // the review time stays
+    fireEvent.change(how, { target: { value: "none" } });
+    expect(within(step).getByText(/failed checks \(step 5\) and missing or invalid values still do/)).toBeTruthy();
+    expect(within(step).queryByLabelText("Stricter fields")).toBeNull();
+    expect(within(step).getByText(/can start an agent/)).toBeTruthy();
+  });
+
   it("reads Gmail with an app password and POP3 inboxes", async () => {
     start(await mailboxApi()); await go("#/processes/supplier-invoices-ksa/intake");
     const intake = await screen.findByRole("region", { name: "Document ingestion" });

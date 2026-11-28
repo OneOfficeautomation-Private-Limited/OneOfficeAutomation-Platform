@@ -2,7 +2,7 @@ import type { MailConditions, MailTry } from "../../api/cr";
 import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type ReviewMode, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
@@ -40,7 +40,7 @@ interface DfDelivery { id: string; type: DeliveryType; name: string; enabled: bo
 interface DfFlow {
   id: string; name: string; description: string; folder?: string; docTypes: string[]; status: "draft" | "live"; isInbox: boolean; version: number;
   classify: { mode: "single" | "auto"; split: boolean; minScore?: number; whenNoType?: "review" | "other" | "reject"; checkType?: boolean }; engine: { option: string; ocrProvider: string; extractionProvider: string; monthlyBudget?: number | null; extractionByType?: Record<string, string> };
-  review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number> }; rules: DfRule[];
+  review: { fieldConfidence: number; slaHours: number; fieldThresholds?: Record<string, number>; mode?: ReviewMode; documentConfidence?: number }; rules: DfRule[];
   deliveries: DfDelivery[];
   intake: { inputFolder: string; pollSeconds: number; email?: Record<string, unknown>; einvoiceFirst?: boolean; einvoiceStandards?: string[]; upload?: boolean }; updatedAt: string;
   stats?: Stats; docTypeNames?: string[];
@@ -615,7 +615,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       settings: {
         inputFolder: f.intake.inputFolder, pollSeconds: f.intake.pollSeconds, classifyMode: f.classify.mode, split: f.classify.split,
         whenNoType: f.classify.whenNoType ?? "review", checkType: !!f.classify.checkType,
-        extraction: f.engine.extractionProvider, monthlyBudget: f.engine.monthlyBudget ?? null, extractionByType: { ...(f.engine.extractionByType ?? {}) }, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours,
+        extraction: f.engine.extractionProvider, monthlyBudget: f.engine.monthlyBudget ?? null, extractionByType: { ...(f.engine.extractionByType ?? {}) }, fieldConfidence: f.review.fieldConfidence, slaHours: f.review.slaHours, ...(f.review.mode ? { reviewMode: f.review.mode } : {}),
         email: f.intake.email && Object.keys(f.intake.email).length ? (f.intake.email as unknown as EmailInbox) : null,
         einvoiceFirst: f.intake.einvoiceFirst ?? true, einvoiceStandards: f.intake.einvoiceStandards ?? [], upload: f.intake.upload !== false, fieldThresholds: { ...(f.review.fieldThresholds ?? {}) },
       },
@@ -643,7 +643,8 @@ export class HttpDocFlowApi implements DocFlowApi {
       intake: { ...cur.intake, inputFolder: s.inputFolder, pollSeconds: s.pollSeconds, email: s.email ?? {}, einvoiceFirst: s.einvoiceFirst, einvoiceStandards: s.einvoiceStandards ?? [], upload: s.upload !== false },
       classify: { ...cur.classify, mode: s.classifyMode, split: s.split, whenNoType: s.whenNoType ?? "review", checkType: !!s.checkType },
       engine: { ...cur.engine, extractionProvider: s.extraction, monthlyBudget: s.monthlyBudget ?? null, extractionByType: s.extractionByType ?? {} },
-      review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds },
+      review: { ...cur.review, fieldConfidence: s.fieldConfidence, slaHours: s.slaHours, fieldThresholds: s.fieldThresholds,
+        ...(s.reviewMode && cur.review.mode ? { mode: s.reviewMode } : {}) },
       rules: d.checks.map((c) => {
         const old = cur.rules.find((r) => r.id === c.id);
         return { ...(old ?? {}), id: c.id, type: c.type, name: c.name, enabled: c.on, action: c.ifFails, params: c.params };

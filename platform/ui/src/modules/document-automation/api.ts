@@ -153,6 +153,9 @@ export interface ProcessSettings {
   einvoiceStandards?: string[];
   /** People may add documents on the screens (on by default); agents, e-mail and folders are not affected. */
   upload?: boolean;
+  /** How much goes to a person (DocFlow 3.4.1): values under the thresholds, every document, or none for confidence alone.
+   *  undefined: the DocFlow in use does not have it (only the thresholds then). */
+  reviewMode?: ReviewMode;
   /** Stricter (or looser) review thresholds for single fields: {field name: 0–1}, over fieldConfidence. */
   fieldThresholds: Record<string, number>;
 }
@@ -238,6 +241,8 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
+/** Step 6: how much goes to review (DocFlow 3.4.1). */
+export type ReviewMode = "unsure" | "all" | "none";
 /** What a check may compare a field with (step 5): a number, a date, or text. */
 export type FieldKind = "number" | "date" | "text";
 export type FieldType = "Text" | "Date" | "Date and time" | "Amount" | "Number" | "Percentage" | "Yes/No" | "Ticked" | "Signed"
@@ -601,7 +606,7 @@ const DESIGN_BASE = {
   id: "supplier-invoices-ksa", name: "Supplier invoices KSA", state: "draft" as const, version: 1, folder: "Finance / Accounts payable", docType: "Supplier invoice",
   docTypeIds: ["supplier-invoice"], checks: DESIGN_CHECKS,
   settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
-    email: null as EmailInbox | null, einvoiceFirst: true, fieldThresholds: {} as Record<string, number> },
+    email: null as EmailInbox | null, einvoiceFirst: true, fieldThresholds: {} as Record<string, number>, reviewMode: "unsure" as ReviewMode },
   deliveries: [] as Delivery[],
   fields: ([["invoice_number", "Invoice number", "text"], ["invoice_date", "Invoice date", "date"], ["supplier_name", "Supplier", "text"], ["supplier_vat", "Supplier VAT no.", "text"],
     ["subtotal", "Subtotal", "number"], ["vat_amount", "VAT amount", "number"], ["total", "Total", "number"]] as [string, string, FieldKind][]).map(([name, label, kind]) => ({ name, label, kind })),

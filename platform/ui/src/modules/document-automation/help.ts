@@ -132,7 +132,7 @@ export const HINTS = {
   reviewReject: "The document is marked as rejected and nothing is delivered.",
   changeType: "Read the document again as another document type.",
   einvoiceFirst: "Uses an e-invoice's own XML instead of reading the page, and checks the values read against its QR code. Choose which standards below; all by default.",
-  fieldThresholds: "A field listed here goes to review under its own confidence, not the one above.",
+  fieldThresholds: "A field listed here goes to review under its own level, not the one above: for example the total under 99%.",
   wronglyAutoApproved: "Went straight through with a wrong value, so no one checked it. Keep this at 0.",
   addToTestSet: "Copies this document and its approved values into a test set, to test engines on it later.",
 };

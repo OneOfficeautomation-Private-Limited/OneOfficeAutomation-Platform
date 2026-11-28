@@ -222,7 +222,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                 <ExtractStage s={design.settings} set={setSettings} api={api} processId={design.id} processName={design.name} onReplaceType={onReplaceType}
                   types={design.docTypeIds.map((id, i) => ({ id, name: design.docType.split(", ")[i] ?? id }))} />
               </>}
-              {stage === REVIEW && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} />}
+              {stage === REVIEW && <ReviewStage s={design.settings} set={setSettings} fields={design.fields} folder={design.folder} api={api} processId={design.id} />}
               {stage === DELIVER && <DeliverStage deliveries={design.deliveries} onAdd={() => setEditDelivery("new")} onEdit={setEditDelivery}
                 onRemove={(id) => change({ deliveries: design.deliveries.filter((d) => d.id !== id) })} />}
             </section>
