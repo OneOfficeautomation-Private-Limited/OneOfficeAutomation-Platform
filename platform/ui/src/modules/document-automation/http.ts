@@ -492,6 +492,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       documentId, processId: d.flowId, ...(d.doctype_id ? { docTypeId: d.doctype_id } : {}), status: status(d.status), reviewedBy: d.validated_by ?? undefined, name: d.file_name, processName: flow?.name ?? d.flowId, docType: type?.name ?? "Not recognised",
       cameIn: `${clock(d.created_at)} by ${sourceOf({ ...d, instance_id: d.flowId, flags: d.flags, confidence: null }).label.toLowerCase()}`,
       dueIn: mine ? `${Math.max(0, Math.round(mine.slaHours - mine.ageHours))} h` : "—", targetHours: mine?.slaHours ?? flow?.review.slaHours ?? 24,
+      overdueHours: mine ? Math.max(0, mine.ageHours - mine.slaHours) : 0,
       position: at >= 0 ? at + 1 : 1, of: Math.max(queue.length, 1),
       ...(at > 0 ? { previousId: queue[at - 1].id } : {}), ...(at >= 0 && at < queue.length - 1 ? { nextId: queue[at + 1].id } : {}),
       engineTrail: engines.length ? "read by " + engines.join(", re-read by ") + (result?.confidence ? ` (${pct(result.confidence)}%)` : "") : "—",

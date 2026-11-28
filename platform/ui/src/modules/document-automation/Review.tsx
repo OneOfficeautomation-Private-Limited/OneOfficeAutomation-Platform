@@ -10,7 +10,23 @@ import { TableField } from "./review/TableField";
 /** Common reasons to reject a document; any other is typed. */
 const REJECT_REASONS = ["Not a document we process", "Duplicate of one already received", "Unreadable or incomplete", "Wrong supplier or customer", "Sent to us by mistake"];
 const OWN_REASON = "Other reason…";
-import { Chip, Hint, Loading, reportError, dfHash } from "./ui";
+import { Chip, Hint, Loading, reportError, dfHash, duration } from "./ui";
+
+/** Python's errors when a check's formula meets a missing or wrong value: the check could not run. */
+const CHECK_ERROR = /^(.*?)\s*\((TypeError|NameError|KeyError|ValueError|ZeroDivisionError)\)\s*$/;
+/** A failed check in plain words (walkthrough 28 Nov 2026): a formula that could not run names the empty fields it uses. */
+export function plainCheck(text: string, fields: { id: string; label: string }[], values: Record<string, string>): { text: string; formula?: string } {
+  const m = CHECK_ERROR.exec(text.replace(/^Check failed:\s*/, ""));
+  if (!m) return { text };
+  const formula = m[1];
+  const at = (f: { id: string }) => formula.search(new RegExp("(^|[^A-Za-z0-9_])" + f.id + "([^A-Za-z0-9_]|$)"));
+  const used = fields.filter((f) => at(f) >= 0).sort((x, y) => at(x) - at(y));   // in the formula's order
+  const empty = used.filter((f) => !(values[f.id] ?? "").trim());
+  const names = (xs: { label: string }[]) => xs.length < 2 ? xs.map((x) => x.label).join("") : xs.slice(0, -1).map((x) => x.label).join(", ") + " and " + xs[xs.length - 1].label;
+  return { formula, text: empty.length
+    ? `Could not check ${names(used)}: ${names(empty)} ${empty.length === 1 ? "is" : "are"} empty`
+    : "Could not run this check: a value it uses is missing or not a number" };
+}
 
 /**
  * The review task a reviewer opens from the Task inbox: the page itself with a box over every value read from it, why the
@@ -76,7 +92,14 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
   if (!task) return <Loading />;
 
   const flagged = task.fields.filter((f) => f.flagged);
-  const fine = task.fields.filter((f) => !f.flagged);
+  // a value read but not found on the page may have been made up: it needs a look too
+  const unplaced = task.fields.filter((f) => !f.flagged && f.value !== "" && f.place?.grounded === false);
+  const fine = task.fields.filter((f) => !f.flagged && f.value !== "" && f.place?.grounded !== false);
+  const absent = task.fields.filter((f) => !f.flagged && f.value === "");   // optional and not on the document
+  const toCheck = flagged.length + unplaced.length;
+  // 5: most required fields not found on an unsure document: it may be another kind of document
+  const requiredMissing = flagged.filter((f) => f.value === "" && /^Required/i.test(f.flagged!.reason));
+  const notThisType = requiredMissing.length >= 3;
   const fixed = (id: string) => { const f = task.fields.find((x) => x.id === id); return f?.flagged?.suggestion && values[id] === f.flagged.suggestion; };
   const setValue = (id: string, v: string) => setValues({ ...values, [id]: v });
 
@@ -120,7 +143,9 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
             {task.status === "done" && task.reviewedBy && task.docTypeId &&
               <AddToTestSet key={task.documentId} api={api} documentId={task.documentId} docTypeId={task.docTypeId} docType={task.docType} />}
             {task.status === "done" && task.reviewedBy && task.docTypeId && <TeachButton api={api} docTypeId={task.docTypeId} documentId={task.documentId} docType={task.docType} />}</div>
-          <div className="df-muted">{task.processName} · {task.docType} · came in {task.cameIn} · {task.status === "review" ? <><b className="df-text-warn">due in {task.dueIn}</b> ({task.targetHours} h target)</> : <>{task.targetHours} h review target</>}</div>
+          <div className="df-muted">{task.processName} · {task.docType} · came in {task.cameIn} · {task.status === "review" ? (task.overdueHours ?? 0) > 0
+            ? <><b className="df-text-bad">Overdue by {duration(Math.round(task.overdueHours! * 3600))}</b> ({task.targetHours} h target)</>
+            : <><b className="df-text-warn">due in {task.dueIn}</b> ({task.targetHours} h target)</> : <>{task.targetHours} h review target</>}</div>
         </div>
         <span className="df-grow" />
         <span className="df-muted">Task {task.position} of {task.of}</span>
@@ -146,18 +171,25 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
 
         <section className="df-review-fields" aria-label="Fields">
           <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ui-divider)" }}>
-            <b style={{ fontSize: 14 }}>{flagged.filter((f) => !fixed(f.id)).length > 0 ? `${flagged.length} field${flagged.length > 1 ? "s" : ""} need${flagged.length > 1 ? "" : "s"} you`
-              : !flagged.length && task.documentReasons.length ? "The document needs your check" : "All flagged fields checked"}</b>
+            <b style={{ fontSize: 14 }}>{flagged.filter((f) => !fixed(f.id)).length + unplaced.length > 0 ? `${toCheck} field${toCheck > 1 ? "s" : ""} need${toCheck > 1 ? "" : "s"} you`
+              : !toCheck && task.documentReasons.length ? "The document needs your check" : "All flagged fields checked"}</b>
             <div className="df-muted">Click a field to see it on the page. Check the highlighted value, then approve.</div>
           </div>
           <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14, overflow: "auto", flex: 1 }}>
+            {notThisType && task.status === "review" && (
+              <div className="df-panel-note" role="note" aria-label="It may be another kind of document">
+                <span style={{ flex: 1 }}><b>This may not be {/^[aeiou]/i.test(task.docType) ? "an" : "a"} {task.docType}:</b> {requiredMissing.length} required fields were not found on it.</span>
+                <Button disabled={saving} onClick={openTypes}>Change document type</Button>
+                <Button kind="danger" disabled={saving} onClick={() => setRejecting(true)}>Reject</Button>
+              </div>
+            )}
             {task.documentReasons.length > 0 && (
               <div className="df-review-why" role="note" aria-label="Why this document needs review">
                 <b>Why it needs review</b>
-                <ul>{task.documentReasons.map((r) => <li key={r}>{r}</li>)}</ul>
+                <ul>{task.documentReasons.map((r) => { const p = plainCheck(r, task.fields, values); return <li key={r}>{p.text}{p.formula && <span className="df-small" style={{ display: "block" }}>{p.formula}</span>}</li>; })}</ul>
               </div>
             )}
-            {flagged.length > 0 && <div className="df-small" style={{ fontWeight: 700 }}>NEEDS YOUR CHECK</div>}
+            {toCheck > 0 && <div className="df-small" style={{ fontWeight: 700 }}>NEEDS YOUR CHECK</div>}
             {flagged.map((f) => (
               <div key={f.id} className={`df-flag${isSel(f.id) ? " is-selected" : ""}`}>
                 <label htmlFor={"df-f-" + f.id} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
@@ -175,7 +207,17 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
               </div>
             ))}
 
-            <div className="df-small" style={{ fontWeight: 700, marginTop: 4 }}>CHECKED, NO ACTION NEEDED</div>
+            {unplaced.map((f) => (
+              <div key={f.id} className={`df-flag${isSel(f.id) ? " is-selected" : ""}`}>
+                <label htmlFor={"df-f-" + f.id} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+                  {f.label}<span className="df-grow" /><Chip tone="warn">Read at {f.confidence}%</Chip></label>
+                <input id={"df-f-" + f.id} className="ui-input df-num" dir="auto" style={{ marginTop: 6 }} value={values[f.id] ?? ""}
+                  onFocus={() => select(f.id)} onChange={(e) => setValue(f.id, e.target.value)} />
+                <div className="df-text-warn" style={{ marginTop: 6 }}>Not found on the page: check it against the document</div>
+              </div>
+            ))}
+
+            {fine.length > 0 && <div className="df-small" style={{ fontWeight: 700, marginTop: 4 }}>CHECKED, NO ACTION NEEDED</div>}
             {fine.map((f) => (
               <div key={f.id} className={`df-field-row${isSel(f.id) ? " is-selected" : ""}`}>
                 <label htmlFor={"df-f-" + f.id} className="df-muted">{f.label}</label>
@@ -186,11 +228,30 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
               </div>
             ))}
 
+            {absent.length > 0 && <>
+              <div className="df-small" style={{ fontWeight: 700, marginTop: 4 }}>NOT ON THE DOCUMENT</div>
+              <span className="df-small">Optional, and not found. Type a value if the document has one.</span>
+              {absent.map((f) => (
+                <div key={f.id} className={`df-field-row${isSel(f.id) ? " is-selected" : ""}`}>
+                  <label htmlFor={"df-f-" + f.id} className="df-muted">{f.label}</label>
+                  <input id={"df-f-" + f.id} className="ui-input df-num" dir="auto" value={values[f.id] ?? ""} placeholder="Not found"
+                    onFocus={() => select(f.id)} onChange={(e) => setValue(f.id, e.target.value)} />
+                </div>
+              ))}
+            </>}
+
             {task.tables.length > 0 && <div className="df-small" style={{ fontWeight: 700, marginTop: 8 }}>TABLES</div>}
-            {task.tables.map((t) => (
-              <TableField key={t.id} table={t} rows={rows[t.id] ?? []} onChange={(r) => setRows({ ...rows, [t.id]: r })}
-                selected={isSel(t.id)} selectedRow={isSel(t.id) ? sel!.row : null} onSelectRow={(r) => select(t.id, r)} />
-            ))}
+            {task.tables.map((t) => {
+              const cur = rows[t.id] ?? [];
+              // 6: rows with nothing in them are not shown as rows: the table says nothing was read
+              if (cur.length && cur.every((r) => t.columns.every((c) => !(r[c.name] ?? "").trim())) && cur === t.rows) return (
+                <div key={t.id} className="df-field-row" aria-label={t.label}>
+                  <span className="df-muted">{t.label}</span><span className="df-small">No {t.label.toLowerCase()} were read.</span>
+                  <Button kind="plain" onClick={() => setRows({ ...rows, [t.id]: [Object.fromEntries(t.columns.map((c) => [c.name, ""]))] })}>Add a row</Button>
+                </div>);
+              return <TableField key={t.id} table={t} rows={cur} onChange={(r) => setRows({ ...rows, [t.id]: r })}
+                selected={isSel(t.id)} selectedRow={isSel(t.id) ? sel!.row : null} onSelectRow={(r) => select(t.id, r)} />;
+            })}
 
             {task.einvoice && <EInvoicePanel einvoice={task.einvoice} />}
 
@@ -200,7 +261,7 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
               return (
                 <div key={c.text} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span className="df-mark" style={{ background: passed ? "var(--ui-run)" : "#c0233f" }} aria-hidden="true">{passed ? "✓" : "✕"}</span>
-                  <span>{c.text}</span><span className="df-small">{passed && !c.passed ? "passes with the corrected value" : c.detail}</span>
+                  <span>{plainCheck(c.text, task.fields, values).text}</span><span className="df-small">{passed && !c.passed ? "passes with the corrected value" : plainCheck(c.text, task.fields, values).formula ?? c.detail}</span>
                   <span className="sr-only">{passed ? "passed" : "failed"}</span>
                 </div>
               );

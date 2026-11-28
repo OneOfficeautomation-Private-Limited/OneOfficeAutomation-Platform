@@ -79,6 +79,8 @@ export interface ReviewPage { number: number; image: string; width?: number; hei
 export interface ReviewTask {
   /** docTypeId: the document type's id (DocType.id), when the document has one. */
   documentId: string; processId?: string; docTypeId?: string; status: DocStatus; reviewedBy?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; targetHours: number; position: number; of: number;
+  /** How long past its review time it is (hours; 0 or absent: not late). */
+  overdueHours?: number;
   /** The review tasks before and after this one in the waiting list (Previous task, Next task); absent at either end. */
   previousId?: string; nextId?: string;
   engineTrail: string; pages: ReviewPage[];
