@@ -258,12 +258,19 @@
 /* round 2 item 5: the eight steps fit one row at 1366 px (step 8 wrapped) */
 /* layout fixes 27 Nov, item 3: eight even steps, number and name on one line, the hint below (two lines at most);
    they wrap into more rows on narrow screens instead of spilling out of their boxes */
+/* walkthrough step 5 (28 Nov 2026): the columns follow the steps' own width (not the window's), so a step name is
+   never split inside a word: eight in a row when each has room, then four, then two */
+.df-steps-box { container-type: inline-size; min-width: 0; }
 .df-steps { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 1200px) { .df-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .df-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 1080px) { .df-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 520px) { .df-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .df-steps .df-stage { min-width: 0; padding: 8px 10px; gap: 8px; align-items: flex-start; height: auto; line-height: 1.3; }
 .df-stage-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: start; }
-.df-stage-text > b { font-size: 13px; line-height: 22px; overflow-wrap: anywhere; }
+.df-stage-text > b { font-size: 13px; line-height: 22px; overflow-wrap: break-word; }
+/* step 5: field names to click into a formula */
+.df-chips-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.df-chip-btn { min-height: 26px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 13px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.df-chip-btn:hover { background: var(--ui-soft); }
 .df-stage-text > .df-small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ui-text-2); }
 .df-steps .df-stage-n { margin-top: 0; }
 /* 14 Nov usability round, item 12: a learned label's remove button is large enough to click */

@@ -165,7 +165,8 @@ export interface ProcessDesign {
   stages: { name: string; summary: string; done: boolean }[];
   settings: ProcessSettings; deliveries: Delivery[];
   /** The fields its document types read, for checks to test. */
-  fields: { name: string; label: string }[];
+  /** kind: number (amounts, numbers, percentages), date, or text; unknown: offered everywhere. */
+  fields: { name: string; label: string; kind?: FieldKind }[];
 }
 
 export const RULE_KIND: Record<RuleType, string> = {
@@ -207,7 +208,7 @@ export function ruleTest(type: RuleType, p: Record<string, unknown>): string {
     case "duplicate": return `Same ${list(p.fields)} seen before`;
     case "ksa_vat": return "Saudi VAT number format; VAT is 15%; totals add up";
     case "tax": return `${TAX_PRESETS.find((x) => x.id === (p.preset ?? "custom"))?.name ?? t(p.preset)}${p.rates ? "; rates " + t(p.rates) : ""}; tax id format; totals add up`;
-    case "pattern": return `${t(p.field)} matches ${t(p.pattern)}`;
+    case "pattern": return p.format ? `${t(p.field)} must be ${t(p.format)}` : `${t(p.field)} matches ${t(p.pattern)}`;
     case "date_range": return `${t(p.field)}${p.notFuture ? " not in the future" : ""}${p.notOlderThanDays ? `, at most ${t(p.notOlderThanDays)} days old` : ""}`;
     case "required": return list(p.fields);
   }
@@ -237,6 +238,8 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   ];
 }
 
+/** What a check may compare a field with (step 5): a number, a date, or text. */
+export type FieldKind = "number" | "date" | "text";
 export type FieldType = "Text" | "Date" | "Date and time" | "Amount" | "Number" | "Percentage" | "Yes/No" | "Ticked" | "Signed"
   | "Choice" | "Several choices" | "Email" | "Phone" | "Address" | "Table" | "Group";
 /** How a field is read: copied as printed, worked out from the whole document (a summary, "is it overdue?"), or a choice picked. */
@@ -600,8 +603,8 @@ const DESIGN_BASE = {
   settings: { inputFolder: "\\\\scan01\\invoices\\ksa", pollSeconds: 30, classifyMode: "single" as const, split: false, extraction: "auto", fieldConfidence: 0.85, slaHours: 24,
     email: null as EmailInbox | null, einvoiceFirst: true, fieldThresholds: {} as Record<string, number> },
   deliveries: [] as Delivery[],
-  fields: [["invoice_number", "Invoice number"], ["invoice_date", "Invoice date"], ["supplier_name", "Supplier"], ["supplier_vat", "Supplier VAT no."],
-    ["subtotal", "Subtotal"], ["vat_amount", "VAT amount"], ["total", "Total"]].map(([name, label]) => ({ name, label })),
+  fields: ([["invoice_number", "Invoice number", "text"], ["invoice_date", "Invoice date", "date"], ["supplier_name", "Supplier", "text"], ["supplier_vat", "Supplier VAT no.", "text"],
+    ["subtotal", "Subtotal", "number"], ["vat_amount", "VAT amount", "number"], ["total", "Total", "number"]] as [string, string, FieldKind][]).map(([name, label, kind]) => ({ name, label, kind })),
 };
 const DESIGN: ProcessDesign = { ...DESIGN_BASE, stages: stagesOf(DESIGN_BASE, (id) => id) };
 

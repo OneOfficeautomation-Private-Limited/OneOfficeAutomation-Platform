@@ -7,7 +7,7 @@ import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle, ChoiceOrOwn, Hint, dfHash, duration } from "./ui";
 import { READ, SHOWN_FIELDS } from "./ClassificationStep";
 import { PlatformFolderField } from "./dialogs";
-import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, TAX_PRESETS, money, parseAmount, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocType, type EmailInbox, type FieldKind, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -510,18 +510,42 @@ function OutSettings({ d, setD }: { d: Delivery; setD: (d: Delivery) => void }) 
   );
 }
 
+/** One plain sentence for each kind of check (step 5). */
+const KIND_HELP: Record<RuleType, string> = {
+  threshold: "A number field is more than, less than, between or outside amounts you set (for example Total more than 50,000).",
+  required: "The fields you tick must not be empty.",
+  duplicate: "Same values in the fields you tick as an earlier document means a duplicate (for example supplier and invoice number).",
+  date_range: "A date is not in the future, or not older than a number of days.",
+  pattern: "A field's value has a set format: an email address, digits only, an IBAN, or a pattern of your own.",
+  lookup: "The value must be in a column of a Reference data table (for example the approved suppliers).",
+  tax: "A country's tax rules: the tax id format, a real tax rate, and subtotal + tax = total.",
+  ksa_vat: "Saudi Arabia's VAT rules: the tax id format, a real VAT rate, and subtotal + VAT = total.",
+  expression: "A formula with the field names that must be true (for example the lines add up to the total).",
+};
+/** Ready-made formats for "Format of a field"; anything else is an own pattern. */
+const FORMATS_READY: { name: string; pattern: string }[] = [
+  { name: "an email address", pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+  { name: "digits only", pattern: "^\\d+$" },
+  { name: "letters and digits only", pattern: "^[A-Za-z0-9]+$" },
+  { name: "an IBAN", pattern: "^[A-Z]{2}\\d{2}[A-Z0-9]{11,30}$" },
+];
+const OWN_FORMAT = "\u0000own";
+
 const OPS = [[">", "more than"], [">=", "at least"], ["<", "less than"], ["<=", "at most"], ["==", "exactly"], ["!=", "not"], ["between", "between"], ["outside", "outside"]];
 
 export function CheckDialog({ open, value, design, tables, processes = [], onClose, onSave }:
   { open: boolean; value: Check | null; design: ProcessDesign; tables: RefTable[]; processes?: { id: string; name: string }[]; onClose: () => void; onSave: (c: Check) => void }) {
-  const [c, setC] = useState<Check>(() => value ?? { id: newId("c"), on: true, name: "", kind: "", test: "", ifFails: "review", type: "threshold", params: { field: "total", op: ">", value: 50000 } });
+  const [c, setC] = useState<Check>(() => value ?? { id: newId("c"), on: true, name: "", kind: "", test: "", ifFails: "review", type: "threshold", params: { op: ">" } });
+  const [ownFormat, setOwnFormat] = useState(() => !!value?.params.pattern && !FORMATS_READY.some((f) => f.pattern === value.params.pattern));
   const p = c.params;
   const setP = (patch: Record<string, unknown>) => setC({ ...c, params: { ...p, ...patch } });
-  const fieldOptions = design.fields.map((f) => ({ value: f.name, label: f.label }));
-  const fieldSelect = (key: string, label: string) => (
-    <Field label={label}>{(id) => <Select id={id} value={String(p[key] ?? "")} onChange={(e) => setP({ [key]: e.target.value })}
-      options={[{ value: "", label: "Choose a field" }, ...fieldOptions]} />}</Field>
-  );
+  const fits = (f: ProcessDesign["fields"][number], kind?: FieldKind) => !kind || !f.kind || f.kind === kind;
+  const known = (key: string) => design.fields.some((f) => f.name === p[key]);   // a saved field that is still in the process
+  const fieldSelect = (key: string, label: string, kind?: FieldKind) => {
+    const options = design.fields.filter((f) => fits(f, kind)).map((f) => ({ value: f.name, label: f.label }));
+    return <Field label={label}>{(id) => <Select id={id} value={known(key) ? String(p[key]) : ""} onChange={(e) => setP({ [key]: e.target.value })}
+      options={[{ value: "", label: options.length ? "Choose a field" : `No ${kind ?? ""} fields in this process`.replace("  ", " ") }, ...options]} />}</Field>;
+  };
   const fieldList = (key: string, label: string) => {
     const chosen = (p[key] as string[] | undefined) ?? [];
     return (
@@ -541,10 +565,10 @@ export function CheckDialog({ open, value, design, tables, processes = [], onClo
   const ready = (() => {
     switch (c.type) {
       case "expression": return !!String(p.expression ?? "").trim();
-      case "lookup": return !!(p.field && p.table && p.column);
-      case "threshold": return !!p.field && !isNaN(parseAmount(p.value)) && (p.op !== "between" && p.op !== "outside" || !isNaN(parseAmount(p.value2)));
-      case "pattern": return !!p.field && !!String(p.pattern ?? "").trim() && (() => { try { new RegExp(String(p.pattern)); return true; } catch { return false; } })();
-      case "date_range": return !!p.field && (!!p.notFuture || !!p.notOlderThanDays || !!p.notLaterThanDays);
+      case "lookup": return known("field") && !!(p.table && p.column);
+      case "threshold": return known("field") && !isNaN(parseAmount(p.value)) && (p.op !== "between" && p.op !== "outside" || !isNaN(parseAmount(p.value2)));
+      case "pattern": return known("field") && !!String(p.pattern ?? "").trim() && (() => { try { new RegExp(String(p.pattern)); return true; } catch { return false; } })();
+      case "date_range": return known("field") && (!!p.notFuture || !!p.notOlderThanDays || !!p.notLaterThanDays);
       case "duplicate": case "required": return ((p.fields as string[] | undefined) ?? []).length > 0;
       default: return true;
     }
@@ -557,13 +581,14 @@ export function CheckDialog({ open, value, design, tables, processes = [], onClo
     <Dialog open={open} onClose={onClose} title={value ? "Edit check" : "Add check"} width={620}
       footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!ready} onClick={save}>Save</Button></>}>
       <div className="df-grid df-g2">
-        <Field label="Kind of check">{(id) => <Select id={id} value={c.type} onChange={(e) => setC({ ...c, type: e.target.value as RuleType, params: {} })}
+        <Field label="Kind of check">{(id) => <Select id={id} value={c.type} onChange={(e) => { setOwnFormat(false); setC({ ...c, type: e.target.value as RuleType, params: e.target.value === "threshold" ? { op: ">" } : {} }); }}
           options={(Object.keys(RULE_KIND) as RuleType[]).filter((k) => k !== "ksa_vat" || c.type === "ksa_vat").map((k) => ({ value: k, label: RULE_KIND[k] }))} />}</Field>
         <Field label="Name">{(id) => <TextInput id={id} value={c.name} placeholder={RULE_KIND[c.type]} onChange={(e) => setC({ ...c, name: e.target.value })} />}</Field>
       </div>
+      <p className="df-small" aria-label="What this kind of check does" style={{ margin: 0 }}>{KIND_HELP[c.type]}</p>
       {c.type === "threshold" && (
         <div className="df-grid df-g3">
-          {fieldSelect("field", "Field")}
+          {fieldSelect("field", "Field", "number")}
           <Field label="Is">{(id) => <Select id={id} value={String(p.op ?? ">")} onChange={(e) => setP({ op: e.target.value })} options={OPS.map(([value, label]) => ({ value, label }))} />}</Field>
           <Field label={p.op === "between" || p.op === "outside" ? "From" : "Amount"}>{(id) => <TextInput id={id} inputMode="decimal" value={String(p.value ?? "")} onChange={(e) => setP({ value: e.target.value })} />}</Field>
           {(p.op === "between" || p.op === "outside") && <Field label="To">{(id) => <TextInput id={id} inputMode="decimal" value={String(p.value2 ?? "")} onChange={(e) => setP({ value2: e.target.value })} />}</Field>}
@@ -590,14 +615,17 @@ export function CheckDialog({ open, value, design, tables, processes = [], onClo
       {c.type === "pattern" && (
         <div className="df-grid df-g2">
           {fieldSelect("field", "Field")}
-          <Field label="Must match" hint="A pattern (regular expression) the whole value must match.">
-            {(id) => <TextInput id={id} mono value={String(p.pattern ?? "")} onChange={(e) => setP({ pattern: e.target.value })} />}
-          </Field>
+          <Field label="Must be">{(id) => <Select id={id} value={ownFormat ? OWN_FORMAT : String(p.pattern ?? "")}
+            onChange={(e) => { if (e.target.value === OWN_FORMAT) { setOwnFormat(true); setP({ format: undefined }); } else { setOwnFormat(false); setP({ pattern: e.target.value, format: FORMATS_READY.find((f) => f.pattern === e.target.value)?.name }); } }}
+            options={[{ value: "", label: "Choose a format" }, ...FORMATS_READY.map((f) => ({ value: f.pattern, label: f.name[0].toUpperCase() + f.name.slice(1) })), { value: OWN_FORMAT, label: "Own pattern…" }]} />}</Field>
+          {ownFormat && <Field label="Own pattern" hint="A regular expression the whole value must match, for example ^\d{15}$ for exactly 15 digits.">
+            {(id) => <TextInput id={id} mono value={String(p.pattern ?? "")} onChange={(e) => setP({ pattern: e.target.value, format: undefined })} />}
+          </Field>}
         </div>
       )}
       {c.type === "date_range" && (
         <div className="df-grid df-g3">
-          {fieldSelect("field", "Date field")}
+          {fieldSelect("field", "Date field", "date")}
           <Field label="At most this many days old">{(id) => <TextInput id={id} inputMode="numeric" value={String(p.notOlderThanDays ?? "")} placeholder="any age" onChange={(e) => setP({ notOlderThanDays: e.target.value ? Number(e.target.value) : undefined })} />}</Field>
           <label style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "end" }}><input type="checkbox" checked={!!p.notFuture} onChange={(e) => setP({ notFuture: e.target.checked })} />Not in the future</label>
         </div>
@@ -614,9 +642,14 @@ export function CheckDialog({ open, value, design, tables, processes = [], onClo
       {c.type === "duplicate" && fieldList("fields", "Same values in these fields means a duplicate")}
       {c.type === "required" && fieldList("fields", "These fields must not be empty")}
       {c.type === "expression" && (
-        <Field label="Must be true" hint="Use the field names, for example abs(subtotal + vat_amount - total) <= 0.05; value_or(discount, 0) counts a missing field as 0">
+        <><Field label="Must be true" hint="Use the field names, for example abs(subtotal + vat_amount - total) <= 0.05; value_or(discount, 0) counts a missing field as 0">
           {(id) => <TextInput id={id} mono value={String(p.expression ?? "")} onChange={(e) => setP({ expression: e.target.value })} />}
         </Field>
+        {design.fields.length > 0 && <div role="group" aria-label="Add a field to the formula" className="df-chips-row">
+          <span className="df-small">Add a field:</span>
+          {design.fields.map((f) => <button key={f.name} type="button" className="df-chip-btn" title={f.label}
+            onClick={() => { const cur = String(p.expression ?? ""); setP({ expression: cur + (cur && !cur.endsWith(" ") ? " " : "") + f.name }); }}>{f.label}</button>)}
+        </div>}</>
       )}
       <Field label="If it fails">{(id) => <Select id={id} value={c.ifFails} onChange={(e) => setC({ ...c, ifFails: e.target.value as Check["ifFails"] })}
         options={(Object.keys(IF_FAILS) as Check["ifFails"][]).map((k) => ({ value: k, label: IF_FAILS[k] }))} />}</Field>

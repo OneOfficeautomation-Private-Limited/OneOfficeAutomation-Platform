@@ -184,8 +184,15 @@ describe("the leftovers (25 Nov 2026)", () => {
     start(); await go("#/processes/supplier-invoices-ksa/checks");
     fireEvent.click(within(await screen.findByRole("region", { name: "Validation" })).getByRole("button", { name: "Add check" }));
     const dialog = await screen.findByRole("dialog", { name: "Add check" });
-    fireEvent.change(within(dialog).getByLabelText("If it fails"), { target: { value: "route" } });
     const save = within(dialog).getByRole("button", { name: "Save" }) as HTMLButtonElement;
+    // step 5 (28 Nov 2026): a new check starts empty: no field, no amount, so it cannot be saved yet
+    expect(save.disabled).toBe(true);
+    const field = within(dialog).getByLabelText("Field") as HTMLSelectElement;
+    expect([...field.options].map((o) => o.value)).toEqual(["", "subtotal", "vat_amount", "total"]);   // only number fields
+    fireEvent.change(field, { target: { value: "total" } });
+    fireEvent.change(within(dialog).getByLabelText("Amount"), { target: { value: "50,000" } });
+    expect(save.disabled).toBe(false);
+    fireEvent.change(within(dialog).getByLabelText("If it fails"), { target: { value: "route" } });
     expect(save.disabled).toBe(true);
     const to = within(dialog).getByLabelText(/^Send it to/) as HTMLSelectElement;
     fireEvent.change(to, { target: { value: to.options[1].value } });
@@ -194,6 +201,31 @@ describe("the leftovers (25 Nov 2026)", () => {
     expect(save.disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText(/^Tell/), { target: { value: "cfo@example.com" } });
     expect(save.disabled).toBe(false);
+  });
+
+  it("step 5: a sentence for each kind, ready-made formats, field names for formulas, no filters on a short list", async () => {
+    start(); await go("#/processes/supplier-invoices-ksa/checks");
+    const step = await screen.findByRole("region", { name: "Validation" });
+    // search and filters only from five checks on
+    expect(!!within(step).queryByPlaceholderText("Search checks")).toBe(within(step).getAllByRole("row").length - 1 >= 5);
+    fireEvent.click(within(step).getByRole("button", { name: "Add check" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add check" });
+    const kind = within(dialog).getByLabelText("Kind of check");
+    expect(within(dialog).getByLabelText("What this kind of check does").textContent).toMatch(/^A number field is more than/);
+    fireEvent.change(kind, { target: { value: "date_range" } });
+    expect([...(within(dialog).getByLabelText("Date field") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "invoice_date"]);
+    fireEvent.change(kind, { target: { value: "pattern" } });
+    const format = within(dialog).getByLabelText("Must be") as HTMLSelectElement;
+    fireEvent.change(within(dialog).getByLabelText("Field"), { target: { value: "supplier_vat" } });
+    fireEvent.change(format, { target: { value: format.options[2].value } });          // digits only
+    expect(within(dialog).queryByLabelText("Own pattern")).toBeNull();
+    fireEvent.change(format, { target: { value: format.options[format.options.length - 1].value } });
+    expect(within(dialog).getByLabelText("Own pattern")).toBeTruthy();
+    fireEvent.change(kind, { target: { value: "expression" } });
+    const chips = within(dialog).getByRole("group", { name: "Add a field to the formula" });
+    fireEvent.click(within(chips).getByRole("button", { name: "Subtotal" }));
+    fireEvent.click(within(chips).getByRole("button", { name: "Total" }));
+    expect((within(dialog).getByLabelText("Must be true") as HTMLInputElement).value).toBe("subtotal total");
   });
 
   it("reads Gmail with an app password and POP3 inboxes", async () => {

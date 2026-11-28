@@ -2,7 +2,7 @@ import type { MailConditions, MailTry } from "../../api/cr";
 import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineConnections, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
@@ -20,6 +20,10 @@ interface Stats {
   daily: { day: string; total: number; stp: number; human: number; failed: number }[];
   /** Documents that came in since the 1st of this month (newer DocFlow). */
   thisMonth?: number;
+}
+/** A DocFlow field type as what a check may compare it with (step 5). */
+function fieldKind(type: string): FieldKind {
+  return ["number", "currency", "percentage", "integer", "amount"].includes(type) ? "number" : type === "date" || type === "datetime" ? "date" : "text";
 }
 interface DfFieldDef {
   name: string; type: string; label?: string | null; required: boolean; regex?: string | null; format?: string | null; aliases: string[]; columns: DfFieldDef[];
@@ -623,7 +627,7 @@ export class HttpDocFlowApi implements DocFlowApi {
     };
     const seen = new Set<string>();
     const fields = (f.isInbox ? types : mine).flatMap((t) => t.fields).filter((x) => x.type !== "table" && !seen.has(x.name) && seen.add(x.name))
-      .map((x) => ({ name: x.name, label: (x.label ?? x.name).split(" / ")[0] }));
+      .map((x) => ({ name: x.name, label: (x.label ?? x.name).split(" / ")[0], kind: fieldKind(x.type) }));
     return { id: f.id, name: f.name, state: f.status, version: f.version, folder: f.folder ?? "", ...base, fields,
       stages: stagesOf(base, (e) => ENGINE_NAMES[e] ?? e) };
   }

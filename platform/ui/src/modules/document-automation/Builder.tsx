@@ -161,16 +161,16 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                   Lists to look values up in are kept in <a href={dfHash() + "refdata"}>Reference data</a>.</div></div>
                 <span className="df-grow" /><Button kind="primary" icon="plus" onClick={() => setEditCheck("new")}>Add check</Button>
               </div>
-              <FilterBar onClear={() => { setQ(""); setKind("all"); setOnOff("all"); setFails("all"); }} count={`${rows.length} of ${design.checks.length} checks`}>
+              {design.checks.length >= FILTER_FROM && <FilterBar onClear={() => { setQ(""); setKind("all"); setOnOff("all"); setFails("all"); }} count={`${rows.length} of ${design.checks.length} checks`}>
                 <SearchBox value={q} onChange={setQ} placeholder="Search checks" />
                 <FilterSelect label="Kind" value={kind} onChange={setKind} options={[{ value: "all", label: "All kinds" },
                   ...[...new Set(design.checks.map((c) => c.kind))].map((k) => ({ value: k, label: k }))]} />
                 <FilterSelect label="On / off" value={onOff} onChange={setOnOff} options={[{ value: "all", label: "All" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
                 <FilterSelect label="If it fails" value={fails} onChange={setFails} options={[{ value: "all", label: "Any action" },
                   ...(Object.keys(IF_FAILS) as Check["ifFails"][]).filter((k) => k !== "route" && k !== "notify").map((k) => ({ value: k, label: IF_FAILS[k] }))]} />
-              </FilterBar>
+              </FilterBar>}
               <div className="df-table-wrap">
-                <table className="df-table" style={{ minWidth: 720 }}>
+                {design.checks.length > 0 && <table className="df-table" style={{ minWidth: 720 }}>
                   <thead><tr><th>On</th><th>Check</th><th>What it tests</th><th>If it fails<Hint about="If it fails" text={HINTS.ifFails} /></th><th><span className="sr-only">Actions</span></th></tr></thead>
                   <tbody>
                     {rows.map((c) => (
@@ -189,8 +189,9 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
                       </tr>
                     ))}
                   </tbody>
-                </table>
-                {!design.checks.length && <div className="df-empty">No checks yet. Click Add check.</div>}
+                </table>}
+                {!design.checks.length && <div className="df-empty" aria-label="No checks yet"><b>No checks yet.</b> Checks catch what is wrong before anyone relies on it,
+                  for example a total over 50,000, a date in the future, a supplier not on your list, or an invoice seen before. Click Add check.</div>}
                 {design.checks.length > 0 && !rows.length && <div className="df-empty">No check matches these filters.</div>}
               </div>
             </section>
@@ -247,16 +248,19 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
 }
 
 /** The numbered steps; a step that is not open yet (no process chosen) shows, but cannot be clicked. */
+/** Step 5: the search and filters show once a process has this many checks. */
+const FILTER_FROM = 5;
+
 function Steps({ steps, stage, onStage, enabled }:
   { steps: { name: string; summary: string; done: boolean }[]; stage: number; onStage: (i: number) => void; enabled: (i: number) => boolean }) {
   return (
-    <div role="tablist" aria-label="Steps" className="df-steps">
+    <div className="df-steps-box"><div role="tablist" aria-label="Steps" className="df-steps">
       {steps.map((s, i) => (
         <button key={s.name} type="button" role="tab" className="df-stage" aria-selected={i === stage} disabled={!enabled(i)} onClick={() => onStage(i)}>
           <span className={`df-stage-n${s.done ? " is-done" : i === stage ? " is-current" : ""}`}>{s.done ? "✓" : i + 1}</span>
           <span className="df-stage-text"><b>{s.name}</b><span className="df-small">{s.summary.split(";")[0]}</span></span>
         </button>
       ))}
-    </div>
+    </div></div>
   );
 }
