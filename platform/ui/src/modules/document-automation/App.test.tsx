@@ -207,17 +207,13 @@ describe("Document Automation", () => {
     expect(parseRoute("#/nowhere")).toEqual({ tab: "overview" });
   });
 
-  it("lists processes in the Inbox and filters them; Clear filters brings them back", async () => {
+  it("keeps the Inbox to what needs someone; every process, with its numbers, is on Overview, Table", async () => {
     start(); await go("#/inbox");
-    const region = await table("Processes");
-    expect(within(region).getAllByRole("row")).toHaveLength(5);   // header + 4 processes
-    fireEvent.change(within(region).getByLabelText("Has documents that are"), { target: { value: "failed" } });
-    expect(within(region).getAllByRole("row")).toHaveLength(2);
-    expect(within(region).getByRole("link", { name: "One Inbox" })).toBeTruthy();
-    fireEvent.change(within(region).getByLabelText("Comes in from"), { target: { value: "email" } });
-    expect(within(region).getByText("No process matches these filters.")).toBeTruthy();
-    fireEvent.click(within(region).getAllByRole("button", { name: "Clear filters" })[0]);
-    expect(within(region).getAllByRole("row")).toHaveLength(5);
+    await screen.findByRole("region", { name: "Needs you" });
+    expect(screen.queryByRole("region", { name: "Processes" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Overview, Table" }).getAttribute("href")).toBe("#/overview/table");
+    // straight through says its counts, the same way as on Overview
+    expect(screen.getByText(/read so far needed no person$/)).toBeTruthy();
   });
 
   it("puts what needs someone first: review and failed documents across processes, why they failed, Try again", async () => {
@@ -235,9 +231,10 @@ describe("Document Automation", () => {
     fireEvent.click(within(list).getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(within(screen.getByRole("region", { name: "Needs you" })).queryByText("contract_signed.pdf")).toBeNull());
     expect((await api.documents("smart-inbox")).find((x) => x.id === "contract")!.status).toBe("done");
-    // a chip opens its process with only those documents; Open and Try again work there
+    // on Overview a number opens its process with only those documents; the filter says Agent
+    await go("#/overview/table");
     const procs = await table("Processes");
-    expect(within(procs).getAllByRole("link", { name: /done/ })[0].getAttribute("href")).toMatch(/^#\/process\/.+\/done$/);
+    expect(within(procs).getAllByRole("link", { name: /^\d[\d,]*$/ }).some((a) => /^#\/process\/.+\/(review|failed)$/.test(a.getAttribute("href")!))).toBe(true);
     expect([...(within(procs).getByLabelText("Comes in from") as HTMLSelectElement).options].map((o) => o.textContent)).toContain("Agent");
   });
 
@@ -254,7 +251,7 @@ describe("Document Automation", () => {
 
   it("adds documents on the process page, not on the Inbox's main screen", async () => {
     const api = start(); await go("#/inbox");
-    await table("Processes");
+    await screen.findByRole("region", { name: "Needs you" });
     expect(screen.queryByRole("button", { name: "Add documents" })).toBeNull();
     expect(screen.queryByText(/Drop files here/)).toBeNull();
     expect(screen.getByRole("button", { name: "New process" })).toBeTruthy();
@@ -1039,10 +1036,9 @@ describe("Document Automation", () => {
     const all = await api.processes();
     api.processes = async () => all.map((p) => (p.id === "deliveries" ? { ...p, today: 0, done: 2, review: 1, processing: 0, failed: 0 } : p));
     start(api); await go("#/inbox");
-    const region = await screen.findByRole("region", { name: "Processes" });
-    const row = within(region).getByRole("link", { name: "Deliveries" }).closest("tr")!;
-    expect(within(row).getByText("3")).toBeTruthy();
-    expect(within(row).queryByText("No documents yet")).toBeNull();
+    // the Inbox's figures add up every document, whenever it came in
+    const kpi = (await screen.findAllByText("Waiting for review")).map((e) => e.closest(".df-kpi")).find(Boolean)!;
+    expect(kpi.querySelector(".df-kpi-value")!.textContent).toBe(String(all.reduce((n, p) => n + (p.id === "deliveries" ? 1 : p.review), 0)));
     expect(screen.queryByLabelText("Period")).toBeNull();
   });
 
@@ -1085,14 +1081,14 @@ describe("Document Automation", () => {
     const region = await table("Processes");
     // 13 Nov 2026 (item 11): ten columns at a time so the table fits; Activity first, Set-up a click away
     const heads = () => within(region).getAllByRole("button").filter((b) => b.className === "df-sort").map((b) => b.textContent!.replace(/ .$/, ""));
-    expect(heads()).toEqual(["Process", "Status", "This month", "Today", "Done", "Straight through", "Waiting for review", "Overdue", "Failed", "Last document"]);
+    expect(heads()).toEqual(["Process", "Status", "This month", "Today", "Done", "Straight through", "Waiting for review", "Overdue", "Failed", "Rejected", "Last document"]);
     fireEvent.click(within(region).getByRole("button", { name: "Set-up" }));
     expect(heads()).toEqual(["Process", "Folder", "Status", "Document types", "Comes in from", "Classification", "Extraction engine", "Checks on", "Review", "Delivers to"]);
     const names = () => within(region).getAllByRole("row").slice(1).map((r) => r.querySelector("a")!.textContent);
     expect(names()).toEqual(["AP invoices", "Deliveries", "Expense claims", "One Inbox"]);
     const ap = within(region).getByRole("link", { name: "AP invoices" }).closest("tr")!;
     expect(within(ap).getByText("Live · v4")).toBeTruthy();
-    expect(within(ap).getByText("Upload, Watched folder, Bot")).toBeTruthy();
+    expect(within(ap).getByText("Upload, Watched folder, Agent")).toBeTruthy();
     expect(within(ap).getByText("5 of 6")).toBeTruthy();
     expect(within(ap).getByText("Under 85% · 24 h")).toBeTruthy();
     fireEvent.click(within(region).getByRole("button", { name: "Activity" }));

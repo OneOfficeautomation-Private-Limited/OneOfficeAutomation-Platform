@@ -15,6 +15,8 @@ export interface ProcessSummary {
   today: number; review: number; processing: number; failed: number; done: number; straightThrough: number;
   /** Rejected by a person (counted apart from failed, which the engines could not read). */
   rejected?: number;
+  /** Straight through, as counts: documents that needed no person, of every document read so far (DocFlow's stpRate). */
+  straight?: number; processed?: number;
   lastDocument: string; lastTime: string; sources: Source[]; deliversTo: string[];
 }
 
@@ -296,6 +298,8 @@ export type RefRow = Record<string, string | number | boolean | null>;
 
 export interface DayCount { label: string; straight: number; reviewed: number }
 export interface Overview {
+  /** straightCount, processed: the counts behind straightThrough (every document read so far); rejected: by a person. */
+  straightCount?: number; processed?: number; rejected?: number;
   today: number; straightThrough: number; waiting: number; overdue: number; failed: number; pagesThisMonth: number; cloudCost: number;
   /** Whether pages may go to cloud engines (the dashboard shows the cloud cost only then). */
   cloudOptIn: boolean;
@@ -776,14 +780,16 @@ export class SampleApi implements DocFlowApi {
   private claude: ClaudeModels = { model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" };
 
   async overview(_days = 14) { return { ...copy(OVERVIEW), cloudOptIn: this.routing.cloudOptIn }; }
-  async processes() { return copy(this.processesData); }
+  async processes() {
+    return copy(this.processesData).map((p) => ({ ...p, straight: p.straight ?? Math.round(p.done * p.straightThrough / 100), processed: p.processed ?? p.done + p.review + (p.rejected ?? 0) }));
+  }
   async processTable(): Promise<ProcessRow[]> {
     const name = (id: string) => ENGINES.flatMap((o) => o.engines).find((e) => e.id === id)?.name ?? id;
     return Promise.all(this.processesData.map(async (p) => {
       const d = await this.processDesign(p.id);
       const inbox = p.id === INBOX_ID;
       const a = ACTIVITY[p.id] ?? { month: p.today, overdue: 0, at: p.lastTime };
-      return { ...copy(p), isInbox: inbox, docTypes: inbox ? [] : d.docType.split(", ").filter(Boolean),
+      return { ...copy(p), straight: p.straight ?? Math.round(p.done * p.straightThrough / 100), processed: p.processed ?? p.done + p.review + (p.rejected ?? 0), isInbox: inbox, docTypes: inbox ? [] : d.docType.split(", ").filter(Boolean),
         classifyMode: inbox ? "auto" as const : d.settings.classifyMode, extraction: d.settings.extraction === "auto" ? "Default engine" : name(d.settings.extraction),
         checksOn: d.checks.filter((c) => c.on).length, checks: d.checks.length, fieldConfidence: d.settings.fieldConfidence, slaHours: d.settings.slaHours,
         month: a.month, overdue: a.overdue, lastAt: a.at ? todayAt(a.at) : null };

@@ -251,13 +251,15 @@ export class HttpDocFlowApi implements DocFlowApi {
     const ocr = pageReaders(usage, prov.providers);
     const pages = ocr.reduce((n, u) => n + (u.pages ?? 0), 0);
     const alerts: Overview["alerts"] = [];
-    if (o.overdue) alerts.push({ level: "bad", title: "Review overdue", text: `${o.overdue} document${o.overdue > 1 ? "s" : ""} passed the review target`, to: "#/inbox" });
+    const late = o.overdue ? (await this.call<{ id: string; overdue: boolean }[]>("GET", "/df/review").catch(() => [])).find((d) => d.overdue) : undefined;
+    if (o.overdue) alerts.push({ level: "bad", title: "Review overdue", text: `${o.overdue} document${o.overdue > 1 ? "s" : ""} passed the review target`, to: late ? "#/review/" + encodeURIComponent(late.id) : "#/inbox" });
     if (t.byStatus.failed) alerts.push({ level: "bad", title: `${t.byStatus.failed} document${t.byStatus.failed > 1 ? "s" : ""} failed`, text: "Open the process to see why", to: "#/inbox" });
     if (o.deliveryFailures) alerts.push({ level: "warn", title: "Deliveries failed", text: `${o.deliveryFailures} recent deliveries did not arrive`, to: "#/processes" });
     if (!costs.cloudOptIn) alerts.push({ level: "info", title: "Cloud opt-in is off", text: "Weak pages are retried locally only", to: "#/engines" });
     return {
       cloudOptIn: costs.cloudOptIn,
       today: today?.total ?? 0, straightThrough: pct(t.stpRate) ?? 0, waiting: o.review, overdue: o.overdue, failed: t.byStatus.failed ?? 0,
+      straightCount: t.byStatus.success ?? 0, processed: t.processed ?? 0, rejected: t.byStatus.invalid ?? 0,
       pagesThisMonth: o.pagesThisMonth ?? t.pages, cloudCost: Math.round((o.creditsThisMonth ?? t.credits ?? 0) * 100) / 100,
       days: lastDays(t.daily, todayKey, days).map((d) => ({ label: new Date(d.day + "T00:00:00").toLocaleDateString(undefined, days > 31 ? { month: "short", day: "numeric" } : { day: "numeric" }), straight: d.stp, reviewed: d.human })),
       alerts,
@@ -281,7 +283,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       state: f.status, version: f.version,
       today: f.stats?.daily.find((d) => d.day === todayKey)?.total ?? 0,
       review: by.validation ?? 0, processing: (by.queued ?? 0) + (by.processing ?? 0), failed: by.failed ?? 0, rejected: by.invalid ?? 0,
-      done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0,
+      done: (by.success ?? 0) + (by.validated ?? 0), straightThrough: pct(f.stats?.stpRate) ?? 0, straight: by.success ?? 0, processed: f.stats?.processed ?? 0,
       lastDocument: last?.file_name ?? "—", lastTime: last ? clock(last.created_at) : "",
       sources: [...(f.intake.upload === false ? [] : ["upload" as const]), ...(f.intake.inputFolder ? ["folder" as const] : []), ...(f.intake.email?.enabled ? ["email" as const] : [])],
       deliversTo: f.deliveries.filter((d) => d.enabled).map((d) => d.name || d.type),

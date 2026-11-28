@@ -114,6 +114,11 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): [T | null, 
   return [data, () => setN((x) => x + 1)];
 }
 
+/** Straight through in one way on every screen (Overview walkthrough, 28 Nov 2026): its share and the counts behind it. */
+export function straightText(straight: number, processed: number): string {
+  return processed ? `${straight.toLocaleString()} of ${processed.toLocaleString()} read so far needed no person` : "Nothing read yet";
+}
+export const straightPct = (straight: number, processed: number) => (processed ? Math.round(straight / processed * 100) : 0);
 export const Loading = () => <div className="df-empty" role="status">Loading…</div>;
 
 export function Empty({ children }: { children: ReactNode }) {

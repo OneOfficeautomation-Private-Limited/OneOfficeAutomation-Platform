@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { DayCount, DocFlowApi } from "../api";
-import { Chip, Kpi, Loading, useLoad } from "../ui";
+import { Chip, Kpi, Loading, useLoad, dfHash, straightPct, straightText } from "../ui";
 
 const BLUE = "#2f6fde", AMBER = "#f5b33d", RED = "#c0233f";
 const READ_BY = [BLUE, "#8b6ae8", "#4b5565", "transparent"];
@@ -18,9 +18,10 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
   return (<>
     <div className="df-grid df-g6">
       <Kpi label="Documents today" value={o.today} />
-      <Kpi label="Straight through" value={o.straightThrough + "%"} sub={`${Math.round(o.today * o.straightThrough / 100)} with no human touch`} tone="ok" />
+      <Kpi label="Straight through" value={(o.processed != null ? straightPct(o.straightCount ?? 0, o.processed) : o.straightThrough) + "%"}
+        sub={o.processed != null ? straightText(o.straightCount ?? 0, o.processed) : undefined} tone="ok" />
       <Kpi label="Waiting for review" value={o.waiting} sub={o.overdue ? `${o.overdue} overdue` : "none overdue"} tone={o.overdue ? "bad" : undefined} />
-      <Kpi label="Failed" value={o.failed} tone={o.failed ? "bad" : undefined} />
+      <Kpi label="Failed" value={o.failed} tone={o.failed ? "bad" : undefined} sub={o.rejected ? `${o.rejected} more rejected by a person` : undefined} />
       <Kpi label="Pages read this month" value={o.pagesThisMonth.toLocaleString()} sub={o.cloudOptIn ? undefined : "all on this server"} />
       {o.cloudOptIn
         ? <Kpi label="Cloud cost this month" value={"$" + o.cloudCost} sub="cloud opt-in is on" />
@@ -42,7 +43,7 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
         <b>Needs attention</b>
         {!o.alerts.length && <span className="df-muted">Nothing needs you now.</span>}
         {o.alerts.map((a) => (
-          <a key={a.title} href={a.to} className="df-card" style={{ display: "flex", gap: 10, padding: 8, textDecoration: "none", color: "inherit" }}>
+          <a key={a.title} href={a.to.startsWith("#/") ? dfHash() + a.to.slice(2) : a.to} className="df-card" style={{ display: "flex", gap: 10, padding: 8, textDecoration: "none", color: "inherit" }}>
             <Chip tone={a.level === "bad" ? "bad" : a.level === "warn" ? "warn" : "info"}>{a.level === "bad" ? "Act now" : a.level === "warn" ? "Check" : "Note"}</Chip>
             <span><b>{a.title}</b><span className="df-small" style={{ display: "block" }}>{a.text}</span></span>
           </a>
@@ -59,12 +60,12 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
         <div className="df-head-row"><b>Review backlog</b><span className="df-grow" />
           <span className="df-legend"><span className="df-swatch" style={{ background: AMBER }} />Waiting</span>
           <span className="df-legend"><span className="df-swatch" style={{ background: RED }} />Overdue</span></div>
-        <HBars rows={processes.filter((p) => p.review > 0).map((p) => ({ label: p.name, value: p.review, part: p.overdue, to: "#/process/" + encodeURIComponent(p.id),
+        <HBars rows={processes.filter((p) => p.review > 0).map((p) => ({ label: p.name, value: p.review, part: p.overdue, to: dfHash() + "process/" + encodeURIComponent(p.id) + "/review",
           text: p.overdue ? `${p.review} · ${p.overdue} overdue` : String(p.review) }))} color={AMBER} partColor={RED} empty="No document waits for review." />
       </Card>
       <Card label="Failures">
         <b>Failed documents</b>
-        <HBars rows={processes.filter((p) => p.failed > 0).map((p) => ({ label: p.name, value: p.failed, to: "#/process/" + encodeURIComponent(p.id) }))}
+        <HBars rows={processes.filter((p) => p.failed > 0).map((p) => ({ label: p.name, value: p.failed, to: dfHash() + "process/" + encodeURIComponent(p.id) + "/failed" }))}
           color={RED} empty="No document failed." />
       </Card>
     </div>
@@ -72,7 +73,7 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
     <div className="df-grid df-g3">
       <Card label="Documents by process" span>
         <b>Documents by process, this month</b>
-        <HBars rows={byMonth.map((p) => ({ label: p.name, value: p.month, to: "#/process/" + encodeURIComponent(p.id),
+        <HBars rows={byMonth.map((p) => ({ label: p.name, value: p.month, to: dfHash() + "process/" + encodeURIComponent(p.id),
           text: `${p.month.toLocaleString()} · ${p.straightThrough}% straight through` }))} color={BLUE} empty="No documents this month." />
       </Card>
       <Card label="Where pages were read">

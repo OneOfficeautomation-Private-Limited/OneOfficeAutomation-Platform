@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "../../components";
-import { INBOX_ID, type DocFlowApi, type Source } from "./api";
-import { NewProcessDialog, folderLabel } from "./dialogs";
-import { Chip, FilterBar, FilterSelect, Kpi, Loading, SearchBox, matches, useLoad, dfHash } from "./ui";
+import { INBOX_ID, type DocFlowApi } from "./api";
+import { NewProcessDialog } from "./dialogs";
+import { Kpi, Loading, useLoad, dfHash, straightPct, straightText } from "./ui";
 import { NeedsYou, type NeedFilter } from "./needsYou";
 
 /**
@@ -12,24 +12,15 @@ import { NeedsYou, type NeedFilter } from "./needsYou";
 export function Inbox({ api }: { api: DocFlowApi }) {
   const [processes, reload] = useLoad(() => api.processes(), [api]);
   const [creating, setCreating] = useState(false);
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | "review" | "processing" | "done" | "failed">("all");
-  const [folder, setFolder] = useState("all");
-  const [source, setSource] = useState<"all" | Source>("all");
   const [need, setNeed] = useState<NeedFilter>("all");
   const [oldest, setOldest] = useState<string | null>(null);   // the oldest document waiting for review
   if (!processes) return <Loading />;
 
   const total = (k: "review" | "processing" | "done" | "failed" | "today") => processes.reduce((n, p) => n + p[k], 0);
-  // every document of a process, whenever it came in (today's count is shown under it)
-  const docs = (p: typeof processes[number]) => p.review + p.processing + p.failed + (p.rejected ?? 0) + p.done;
-  const top = (f: string) => folderLabel(f).split(" / ")[0];
-  // done documents that needed nobody: each process's straight-through share of its done documents
-  const straight = processes.reduce((n, p) => n + Math.round(p.done * p.straightThrough / 100), 0);
+  // straight through as on every screen: documents that needed no person, of every document read so far
+  const straight = processes.reduce((n, p) => n + (p.straight ?? 0), 0);
+  const processed = processes.reduce((n, p) => n + (p.processed ?? 0), 0);
   const waiting = processes.find((p) => p.review > 0);
-  const rows = processes.filter((p) => matches(q, p.name, folderLabel(p.folder), p.lastDocument) && (folder === "all" || top(p.folder) === folder)
-    && (source === "all" || p.sources.includes(source)) && (status === "all" || p[status] > 0));
-  const clear = () => { setQ(""); setStatus("all"); setFolder("all"); setSource("all"); };
 
   return (
     <div className="df-page">
@@ -41,7 +32,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
 
       <div className="df-grid df-g4">
         <Kpi label="Received today" value={total("today")} />
-        <Kpi label="Straight through" value={straight} sub={Math.round(straight / Math.max(1, total("done")) * 100) + "%"} tone="ok" />
+        <Kpi label="Straight through" value={straightPct(straight, processed) + "%"} sub={straightText(straight, processed)} tone="ok" />
         <Kpi label="Waiting for review" value={total("review")} sub={waiting ? <>
           {oldest ? <a href={dfHash() + "review/" + encodeURIComponent(oldest)}>Review the oldest</a> : <a href={dfHash() + "process/" + encodeURIComponent(waiting.id)}>Open {waiting.name}</a>}
           {" · "}<button type="button" className="df-link" onClick={() => setNeed("review")}>Show them</button></> : undefined} />
@@ -51,46 +42,7 @@ export function Inbox({ api }: { api: DocFlowApi }) {
 
       <NeedsYou api={api} processes={processes} filter={need} onFilter={setNeed} onChanged={reload} onOldest={setOldest} />
 
-      <section className="df-card" aria-label="Processes" style={{ overflow: "hidden" }}>
-        <FilterBar onClear={clear} count={`${rows.length} of ${processes.length} processes`}>
-          <SearchBox value={q} onChange={setQ} placeholder="Search processes or documents" />
-          <FilterSelect label="Has documents that are" value={status} onChange={setStatus} options={[
-            { value: "all", label: `All statuses (${processes.reduce((n, p) => n + docs(p), 0)})` }, { value: "review", label: `Needs review (${total("review")})` },
-            { value: "processing", label: `Processing (${total("processing")})` }, { value: "done", label: `Done (${total("done")})` },
-            { value: "failed", label: `Failed (${total("failed")})` }]} />
-          <FilterSelect label="Folder" value={folder} onChange={setFolder} options={[{ value: "all", label: "All folders" },
-            ...[...new Set(processes.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
-          <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
-            { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Agent" }, { value: "split", label: "Split from a batch" }]} />
-        </FilterBar>
-        <div className="df-table-wrap">
-          <table className="df-table" style={{ minWidth: 900 }}>
-            <thead><tr><th>Process</th><th className="df-right">Documents</th><th>Status</th><th>Last document</th><th><span className="sr-only">Actions</span></th></tr></thead>
-            <tbody>
-              {rows.map((p) => (
-                <tr key={p.id}>
-                  <td><a href={dfHash() + "process/" + p.id} style={{ fontSize: 14 }}>{p.name}</a><div className="df-small">{folderLabel(p.folder)}</div></td>
-                  <td className="df-right df-num"><span style={{ fontSize: 15, fontWeight: 600 }}>{docs(p)}</span>
-                    {p.today > 0 && <div className="df-small">{p.today} today</div>}</td>
-                  <td><span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {p.review > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/review"}><Chip tone="warn">{p.review} need{p.review === 1 ? "s" : ""} review</Chip></a>}
-                    {p.processing > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/processing"}><Chip tone="info">{p.processing} processing</Chip></a>}
-                    {p.failed > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/failed"}><Chip tone="bad">{p.failed} failed</Chip></a>}
-                    {p.done > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id) + "/done"}><Chip tone="ok">{p.done} done</Chip></a>}
-                    {(p.rejected ?? 0) > 0 && <a className="df-chip-link" href={dfHash() + "process/" + encodeURIComponent(p.id)}><Chip tone="mute">{p.rejected} rejected</Chip></a>}
-                    {docs(p) === 0 && <Chip tone="mute">No documents yet</Chip>}
-                  </span></td>
-                  <td className="df-muted" style={{ whiteSpace: "nowrap" }}>{p.lastTime ? `${p.lastTime} · ${p.lastDocument}` : "—"}</td>
-                  <td className="df-right" style={{ whiteSpace: "nowrap" }}>
-                    <a className="ui-btn ui-btn-plain" href={dfHash() + "process/" + p.id} aria-label={"Open " + p.name}>Open</a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length && <div className="df-empty">No process matches these filters. <button type="button" className="df-link" onClick={clear}>Clear filters</button></div>}
-        </div>
-      </section>
+      <p className="df-small" style={{ margin: 0 }}>Every process, with its numbers and how it is set up: <a href={dfHash() + "overview/table"}>Overview, Table</a>.</p>
       {processes.some((p) => p.id === INBOX_ID) && <p className="df-small" style={{ margin: 0 }}>Documents of different kinds?{" "}
         <a href={dfHash() + "process/" + INBOX_ID}>Add them in {processes.find((p) => p.id === INBOX_ID)!.name}</a>: it recognises each one and sends it to its process.</p>}
 

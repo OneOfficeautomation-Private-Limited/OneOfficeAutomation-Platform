@@ -1,9 +1,13 @@
 import { useState, type ReactNode } from "react";
 import type { DocFlowApi, ProcessRow, Source } from "../api";
 import { folderLabel } from "../dialogs";
-import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, useLoad } from "../ui";
+import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, useLoad, dfHash, straightPct, straightText } from "../ui";
 
-const SOURCE: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Bot", split: "Split" };
+const SOURCE: Record<Source, string> = { upload: "Upload", folder: "Watched folder", email: "Email", bot: "Agent", split: "Split" };
+/** A number that opens the process with only those documents (#/process/<id>/<status>); 0 stays plain. */
+const open = (p: ProcessRow, v: number, status: string, tone?: "bad" | "warn") => v
+  ? <a className={`df-num${tone ? " df-text-" + tone : ""}`} href={dfHash() + "process/" + encodeURIComponent(p.id) + "/" + status} onClick={(e) => e.stopPropagation()}>{v.toLocaleString()}</a>
+  : <span className="df-num">0</span>;
 type Col = { key: string; label: string; right?: boolean; sort: (p: ProcessRow) => string | number; cell: (p: ProcessRow) => ReactNode };
 
 /** The last document's time: the hour today, else the day. */
@@ -19,7 +23,7 @@ const n = (v: number, tone?: "bad" | "warn") => <span className={`df-num${v && t
 /** The columns: what the process is and how it is set up, then what is happening. */
 const COLS: Col[] = [
   { key: "name", label: "Process", sort: (p) => p.name.toLowerCase(),
-    cell: (p) => <a href={"#/process/" + encodeURIComponent(p.id)} onClick={(e) => e.stopPropagation()}>{p.name}</a> },
+    cell: (p) => <a href={dfHash() + "process/" + encodeURIComponent(p.id)} onClick={(e) => e.stopPropagation()}>{p.name}</a> },
   { key: "folder", label: "Folder", sort: (p) => folderLabel(p.folder), cell: (p) => folderLabel(p.folder) || <span className="df-muted">None</span> },
   { key: "state", label: "Status", sort: (p) => p.state + p.version,
     cell: (p) => <Chip tone={p.state === "live" ? "ok" : "mute"}>{p.state === "live" ? "Live" : "Draft"} · v{p.version}</Chip> },
@@ -34,17 +38,20 @@ const COLS: Col[] = [
   { key: "month", label: "This month", right: true, sort: (p) => p.month, cell: (p) => n(p.month) },
   { key: "today", label: "Today", right: true, sort: (p) => p.today, cell: (p) => n(p.today) },
   { key: "done", label: "Done", right: true, sort: (p) => p.done, cell: (p) => n(p.done) },
-  { key: "stp", label: "Straight through", right: true, sort: (p) => p.straightThrough, cell: (p) => <span className="df-num">{p.straightThrough}%</span> },
-  { key: "waiting", label: "Waiting for review", right: true, sort: (p) => p.review, cell: (p) => n(p.review, "warn") },
-  { key: "overdue", label: "Overdue", right: true, sort: (p) => p.overdue, cell: (p) => n(p.overdue, "bad") },
-  { key: "failed", label: "Failed", right: true, sort: (p) => p.failed, cell: (p) => n(p.failed, "bad") },
+  { key: "stp", label: "Straight through", right: true, sort: (p) => p.straightThrough,
+    cell: (p) => <span className="df-num" title={straightText(p.straight ?? 0, p.processed ?? 0)}>{straightPct(p.straight ?? 0, p.processed ?? 0)}%
+      {(p.processed ?? 0) > 0 && <span className="df-small" style={{ display: "block" }}>{p.straight} of {p.processed}</span>}</span> },
+  { key: "waiting", label: "Waiting for review", right: true, sort: (p) => p.review, cell: (p) => open(p, p.review, "review", "warn") },
+  { key: "overdue", label: "Overdue", right: true, sort: (p) => p.overdue, cell: (p) => open(p, p.overdue, "review", "bad") },
+  { key: "failed", label: "Failed", right: true, sort: (p) => p.failed, cell: (p) => open(p, p.failed, "failed", "bad") },
+  { key: "rejected", label: "Rejected", right: true, sort: (p) => p.rejected ?? 0, cell: (p) => n(p.rejected ?? 0) },
   { key: "last", label: "Last document", sort: (p) => p.lastAt ?? "",
     cell: (p) => <><span className="df-num">{when(p.lastAt)}</span>{p.lastAt && <div className="df-small">{p.lastDocument}</div>}</> },
 ];
 
 /** The columns each view shows: what is happening (the default), or how each process is set up. Both fit the screen. */
 const VIEWS = {
-  activity: ["name", "state", "month", "today", "done", "stp", "waiting", "overdue", "failed", "last"],
+  activity: ["name", "state", "month", "today", "done", "stp", "waiting", "overdue", "failed", "rejected", "last"],
   setup: ["name", "folder", "state", "types", "sources", "classify", "extraction", "checks", "review", "deliveries"],
 } as const;
 type View = keyof typeof VIEWS;
@@ -81,7 +88,7 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
         <FilterSelect label="Folder" value={folder} onChange={setFolder} options={[{ value: "all", label: "All folders" },
           ...[...new Set(all.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
         <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
-          { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }, { value: "split", label: "Split from a batch" }]} />
+          { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Agent" }, { value: "split", label: "Split from a batch" }]} />
         <div className="df-seg" role="group" aria-label="Show">
           <button type="button" aria-pressed={view === "activity"} onClick={() => setView("activity")}>Activity</button>
           <button type="button" aria-pressed={view === "setup"} onClick={() => setView("setup")}>Set-up</button>
@@ -98,7 +105,7 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
           </tr></thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id} className="df-row-link" onClick={() => { location.hash = "#/process/" + encodeURIComponent(p.id); }}>
+              <tr key={p.id} className="df-row-link" onClick={() => { location.hash = dfHash() + "process/" + encodeURIComponent(p.id); }}>
                 {shown.map((c) => <td key={c.key} className={c.right ? "df-right" : undefined}>{c.cell(p)}</td>)}
               </tr>
             ))}
