@@ -2,7 +2,7 @@ import type { MailConditions, MailTry } from "../../api/cr";
 import {
   ANY_TYPE, INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
-  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type ReviewMode, type DeliveryResult, type DeliveryLogRow, type ProcessTryResult, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
+  type EInvoice, type EmailInbox, type EngineConnections, type FieldKind, type ReviewMode, type DeliveryResult, type DeliveryLogRow, type ProcessTryResult, type RefPreview, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable, type CheckStrictness, type PriceList, type EInvoiceStandard, type Accuracy, type Improvement,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
   type Combo, type SetRun, type TestSet, type TestSetItem,
@@ -765,10 +765,17 @@ export class HttpDocFlowApi implements DocFlowApi {
     return list.map((t) => {
       const usedBy = flows.filter((f) => f.rules.some((r) => r.type === "lookup" && r.params?.table === t.id)).map((f) => f.name);
       return {
-        id: t.id, name: t.name, rows: t.rowCount, columns: t.columns, updated: new Date(t.updatedAt).toLocaleString(), usedBy,
+        id: t.id, name: t.name, rows: t.rowCount, columns: t.columns, updated: new Date(t.updatedAt).toLocaleString(), updatedAt: t.updatedAt, usedBy,
         meta: usedBy.length ? `Used by ${usedBy.length} process${usedBy.length > 1 ? "es" : ""} · ${clock(t.updatedAt)}` : "Not used by any check",
       };
     });
+  }
+
+  async previewRefTable(file: File, headerRow = 1): Promise<RefPreview> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("headerRow", String(headerRow));
+    return this.call<RefPreview>("POST", "/df/reftables/preview", form);
   }
 
   async refTableRows(id: string, limit = 200): Promise<RefRow[]> {

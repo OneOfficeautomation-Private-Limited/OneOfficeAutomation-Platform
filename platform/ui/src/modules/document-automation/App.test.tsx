@@ -651,6 +651,31 @@ describe("Document Automation", () => {
     expect(within(rows).getAllByRole("row")).toHaveLength(2);
   });
 
+  it("reference data: plain words, an old list flagged, Used by opens step 5, a file previewed before upload", async () => {
+    start(); await go("#/refdata");
+    await screen.findByRole("region", { name: "Rows" });
+    expect(screen.getByText(/^Lists your checks look values up in/)).toBeTruthy();
+    expect(screen.getByRole("note").textContent).toMatch(/^Updated \d+ days ago: is it still current\?/);
+    const used = screen.getAllByRole("link").filter((a) => /\/checks$/.test(a.getAttribute("href") ?? ""));
+    expect(used.length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Upload a table" }));
+    const dialog = await screen.findByRole("dialog", { name: "Upload a table" });
+    fireEvent.change(within(dialog).getByLabelText("Choose a file"), { target: { files: [new File(["Supplier,VAT number" + String.fromCharCode(10) + "ACME,300000000000003" + String.fromCharCode(10) + "Gulf,310000000000003" + String.fromCharCode(10)], "suppliers.csv", { type: "text/csv" })] } });
+    const gives = await within(dialog).findByLabelText("What the file gives");
+    expect(gives.textContent).toContain("2 rows · columns: Supplier, VAT number");
+    expect(within(gives).getByText("ACME")).toBeTruthy();
+  });
+
+  it("reference data with no tables offers an example file and points to step 5", async () => {
+    const api = new SampleApi();
+    api.refTables = async () => [];
+    start(api); await go("#/refdata");
+    const example = await screen.findByRole("link", { name: "Download an example file" });
+    expect(example.getAttribute("download")).toBe("Example suppliers.csv");
+    expect(decodeURIComponent(example.getAttribute("href")!)).toContain("Supplier name,VAT number,Country");
+    expect(screen.getByRole("link", { name: "a process's step 5" }).getAttribute("href")).toBe("#/processes");
+  });
+
   it("compares two engines in the Test lab, or tests one", async () => {
     start(); await go("#/testlab");
     const run = await screen.findByRole("button", { name: "Run test" }) as HTMLButtonElement;

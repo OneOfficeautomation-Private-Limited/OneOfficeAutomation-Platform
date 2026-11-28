@@ -293,7 +293,11 @@ export interface DocType {
 }
 
 /** A reference table: any columns, as uploaded. Its rows are loaded on demand (refTableRows). */
-export interface RefTable { id: string; name: string; rows: number; meta: string; columns: string[]; updated?: string; usedBy?: string[] }
+export interface RefTable { id: string; name: string; rows: number; meta: string; columns: string[]; updated?: string; usedBy?: string[];
+  /** When it was last uploaded (ISO), for "is it still current?". */
+  updatedAt?: string }
+/** What a table upload would give (DocFlow 3.4.2), before anything is saved. */
+export interface RefPreview { columns: string[]; rowCount: number; rows: RefRow[] }
 export type RefRow = Record<string, string | number | boolean | null>;
 
 export interface DayCount { label: string; straight: number; reviewed: number }
@@ -492,6 +496,8 @@ export interface DocFlowApi {
   /** Adds a table from a CSV or Excel file; a table with the same name is replaced. */
   /** replaceId: the table to replace (its name may change); without it a table with the same name is replaced. */
   uploadRefTable(file: File, name: string, replaceId?: string, headerRow?: number): Promise<{ id: string }>;
+  /** The columns and first rows a file would give, saving nothing (DocFlow 3.4.2). */
+  previewRefTable(file: File, headerRow?: number): Promise<RefPreview>;
   deleteRefTable(id: string): Promise<void>;
   /** Reads the file as the document type with engine A (and B), side by side. Nothing is kept. */
   runTest(file: File, docTypeId: string, engineA: string, engineB: string | null): Promise<TestRun>;
@@ -678,7 +684,7 @@ const SUPPLIER_ROWS: RefRow[] = [
 ].map(([code, name, vat, country, status]) => ({ code, name, vat, country, status }));
 
 const REF_TABLES: RefTable[] = [
-  { id: "suppliers", name: "Suppliers", rows: 412, meta: "Used by 2 processes · 1 Nov", columns: ["code", "name", "vat", "country", "status"], updated: "1 Nov 2026",
+  { id: "suppliers", name: "Suppliers", rows: 412, meta: "Used by 2 processes · 1 Nov", columns: ["code", "name", "vat", "country", "status"], updated: "1 Nov 2026", updatedAt: "2026-07-01T09:00:00Z",
     usedBy: ["AP invoices", "Supplier invoices KSA"] },
   { id: "purchase-orders", name: "Purchase orders", rows: 1208, meta: "Used by 1 process · today 06:00", columns: ["po_number", "supplier", "amount"], usedBy: ["AP invoices"] },
   { id: "cost-centres", name: "Cost centres", rows: 36, meta: "Not used by any check", columns: ["code", "name"] },
@@ -1021,7 +1027,13 @@ export class SampleApi implements DocFlowApi {
   }
   private tables = copy(REF_TABLES);
   async refTables() { return copy(this.tables); }
-  async refTableRows(id: string) { return id === "suppliers" ? copy(SUPPLIER_ROWS) : []; }
+  async refTableRows(id: string, limit = 200) { return id === "suppliers" ? copy(SUPPLIER_ROWS).slice(0, limit) : []; }
+  async previewRefTable(file: File, headerRow = 1): Promise<RefPreview> {
+    const lines = (await file.text()).split(/\r?\n/).filter(Boolean).map((l) => l.split(","));
+    const columns = headerRow ? lines[headerRow - 1] ?? [] : (lines[0] ?? []).map((_, i) => "col" + (i + 1));
+    const body = lines.slice(headerRow ? headerRow : 0);
+    return { columns, rowCount: body.length, rows: body.slice(0, 5).map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ""]))) };
+  }
   async uploadRefTable(file: File, name: string, replaceId?: string) {
     const title = name.trim() || file.name.replace(/\.[^.]+$/, "");
     const same = this.tables.find((t) => t.name.toLowerCase() === title.toLowerCase());
