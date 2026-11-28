@@ -60,6 +60,9 @@ All are under DocFlow's `/api/docs/v1/`.
   checks that tell people; sent through Settings > Mail as the process's author) and `docflow-callback/secret` (a
   vault entry for a cloud storage delivery, only one its author may use). Both need DocFlow's service token and are
   audited (`docflow.mail`, `vault.use`). An older DocFlow simply never calls them; the minimum stays 3.1.0.
+- **DocFlow 3.4.2** (28 Nov 2026): failed documents carry their `error` in the documents list (`fields=true`), `POST
+  df/reftables/preview` shows what a table upload gives without saving, and `POST df/test` takes `compare=fields` to
+  compare field-reading engines. The screens use each only when the DocFlow in use has it.
 - **DocFlow 3.4.1** (28 Nov 2026): `review.mode` (unsure, all, none) for how much goes to a person; a webhook header
   value `vault:folder/credential/attribute` read at delivery time (the Command Center checks the vault entry and stamps
   `requestedBy` on save); `POST df/flows/{id}/try`, a dry run that keeps and sends nothing; and a draft process holds its
@@ -82,7 +85,7 @@ DocFlow's `PLATFORM-CONTRACT.md` lists the methods, inputs and response fields f
 
 ## How versions work
 
-1. **Each side has its own version number.** DocFlow's is in its `VERSION` file (3.4.1 now). It reports it at
+1. **Each side has its own version number.** DocFlow's is in its `VERSION` file (3.4.2 now). It reports it at
    `GET /api/docs/v1/admin/version`, which needs no token.
 2. **`/api/docs/v1` only grows.** DocFlow may add routes, inputs and fields. Removing or changing something the
    platform uses means a new `/api/docs/v2`, and v1 stays for at least one platform release.
@@ -112,9 +115,9 @@ this release. The card is a warning only and never blocks anything. The Command 
 
 `platform/modules/document-automation/src/main/resources/docflow-compat.properties` holds the pin:
 - `contract`: the API version the Command Center calls (`v1`);
-- `pinned`: the DocFlow version this release is tested with (3.4.1);
+- `pinned`: the DocFlow version this release is tested with (3.4.2);
 - `minimum`: the oldest DocFlow version that works (3.1.0);
-- `ref`: the oneoffice-docauto release tag that CI checks out (`v3.4.1`; v3.1.0 was the first release, 7 Nov 2026).
+- `ref`: the oneoffice-docauto release tag that CI checks out (`v3.4.2`; v3.1.0 was the first release, 7 Nov 2026).
 
 CI's job **"Document Automation with the real DocFlow (Linux)"** checks out DocFlow at `ref`, starts it with
 PostgreSQL and Tesseract, and runs `DocFlowLiveTest` against it. The test covers:
